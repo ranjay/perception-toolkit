@@ -15,12 +15,12 @@
  * limitations under the License.
  */
 
+import { flat } from '../utils/flat.js';
 import { Marker } from '../../defs/marker.js';
 import { generateMarkerId } from '../utils/generate-marker-id.js';
 import { ARArtifact, ARTargetTypes, ARContentTypes } from './schema/extension-ar-artifacts.js';
 import { GeoCoordinates } from './schema/core-schema-org.js';
 import { ArtifactStore } from './stores/artifact-store.js';
-import { flatMap } from '../utils/flat-map.js';
 import { DetectedImage } from '../../defs/detected-image.js';
 
 export interface NearbyResult {
@@ -75,13 +75,13 @@ export class ArtifactDealer {
   // TODO (#33): Replace map+flat with flatMap once it is polyfilled for all platforms.
   private async generateDiffs(): Promise<NearbyResultDelta> {
     // 1. Using current context (geo, markers), ask artstores to compute relevant artifacts
-    const pendingNearbyResults: Set<NearbyResult> = new Set(flatMap(this.artstores, (artstore) => {
+    const pendingNearbyResults: Set<NearbyResult> = new Set(flat(await Promise.all(this.artstores.map((artstore) => {
       return artstore.findRelevantArtifacts(
         Array.from(this.nearbyMarkers.values()),
         this.currentGeolocation,
         Array.from(this.nearbyImages.values())
       );
-    }));
+    }))));
 
     // 2. Diff with previous list to compute new/old artifacts.
     //    New ones are those which haven't appeared before.

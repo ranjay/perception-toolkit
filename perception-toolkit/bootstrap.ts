@@ -129,7 +129,7 @@ async function initializeExperience() {
 
   const { showLoader, hideLoader } = await import('./loader.js');
   const { config } = window.PerceptionToolkit;
-  const { artifactSources, detectionMode = 'passive' } = config;
+  const { artifactSources, artifactStores, detectionMode = 'passive' } = config;
 
   if (config && config.onboardingImages && config.onboarding) {
     hideLoader();
@@ -145,7 +145,7 @@ async function initializeExperience() {
   // Now the experience is inited, update the closeExperience fn.
   window.PerceptionToolkit.Functions.closeExperience = close;
 
-  initialize({ detectionMode, artifactSources });
+  initialize({ detectionMode, artifactSources, artifactStores });
 }
 
 function addCardToPage({msg = '', cls = ''}) {

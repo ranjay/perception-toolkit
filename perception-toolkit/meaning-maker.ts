@@ -22,6 +22,7 @@ import { ArtifactLoader } from '../src/artifacts/artifact-loader.js';
 import { GeoCoordinates } from '../src/artifacts/schema/core-schema-org.js';
 import { ARArtifact } from '../src/artifacts/schema/extension-ar-artifacts.js';
 import { LocalArtifactStore } from '../src/artifacts/stores/local-artifact-store.js';
+import { ArtifactStore } from '../src/artifacts/stores/artifact-store.js';
 
 type ShouldFetchArtifactsFromCallback = ((url: URL) => boolean) | string[];
 
@@ -44,7 +45,7 @@ export class MeaningMaker {
   private readonly artdealer = new ArtifactDealer();
 
   constructor() {
-    this.artdealer.addArtifactStore(this.artstore);
+    this.addArtifactStore(this.artstore);
   }
 
   /**
@@ -53,6 +54,10 @@ export class MeaningMaker {
   async init() {
     const artifacts = await this.artloader.fromElement(document, document.URL);
     this.saveArtifacts(artifacts);
+  }
+
+  addArtifactStore(store: ArtifactStore) {
+    this.artdealer.addArtifactStore(store);
   }
 
   /**
@@ -95,8 +100,8 @@ export class MeaningMaker {
    * Each DetectableImage has one unique id, and also a list of potential Media which encodes it.
    * It is up to the caller to select the correct media encoding.
    */
-  async getDetectableImages(): Promise<DetectableImage[]> {
-    return this.artstore.getDetectableImages();
+  async getDetectableImages(geo: GeoCoordinates): Promise<DetectableImage[]> {
+    return this.artstore.getDetectableImages(geo);
   }
 
   /*
@@ -136,8 +141,8 @@ export class MeaningMaker {
    *
    * returns `NearbyResultDelta` which can be used to update UI.
    */
-  async updateGeolocation(coords: GeoCoordinates): Promise<NearbyResultDelta> {
-    return this.artdealer.updateGeolocation(coords);
+  async updateGeolocation(geo: GeoCoordinates): Promise<NearbyResultDelta> {
+    return this.artdealer.updateGeolocation(geo);
   }
 
   /*

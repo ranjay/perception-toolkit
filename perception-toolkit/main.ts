@@ -37,6 +37,7 @@ import { NearbyResult, NearbyResultDelta } from '../src/artifacts/artifact-deale
 import { MeaningMaker } from './meaning-maker.js';
 
 import { cameraAccessDenied, perceivedResults, markerDetect } from './events.js';
+import { ArtifactStore } from '../src/artifacts/stores/artifact-store.js';
 
 const detectedTargets = new Map<{value: string, format: string}, number>();
 const meaningMaker = new MeaningMaker();
@@ -86,6 +87,7 @@ let planarDetectionReady = false;
 interface InitOpts {
   detectionMode: 'active' | 'passive';
   artifactSources?: string[];
+  artifactStores?: ArtifactStore[];
 }
 
 /**
@@ -96,6 +98,11 @@ interface InitOpts {
 export async function initialize(opts: InitOpts) {
   // Initialize MeaningMaker
   await meaningMaker.init();
+  if (opts.artifactStores) {
+    for (const store of opts.artifactStores) {
+      meaningMaker.addArtifactStore(store);
+    }
+  }
   if (opts.artifactSources) {
     if (!Array.isArray(opts.artifactSources)) {
       opts.artifactSources = [ opts.artifactSources ];
@@ -130,7 +137,7 @@ async function beginDetection({ detectionMode = 'passive' }: InitOpts) {
     // Create the stream.
     await createStreamCapture(detectionMode);
 
-    const detectableImages = await meaningMaker.getDetectableImages();
+    const detectableImages = await meaningMaker.getDetectableImages({});
     if (detectableImages.length) {
       const overlayInit = { id: 'pt.imagedetect', small: true };
       showOverlay('Initializing image detector...', overlayInit);
