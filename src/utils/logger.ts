@@ -20,29 +20,29 @@
  */
 export enum DEBUG_LEVEL {
   /**
-   * All messages.
+   * No messages.
    */
-  VERBOSE = 'verbose',
-
-  /**
-   * Info.
-   */
-  INFO = 'info',
-
-  /**
-   * Warnings.
-   */
-  WARNING = 'warning',
+  NONE,
 
   /**
    * Errors.
    */
-  ERROR = 'error',
+  ERROR,
 
   /**
-   * No messages.
+   * Warnings.
    */
-  NONE = 'none'
+  WARNING,
+
+  /**
+   * Info.
+   */
+  INFO,
+
+  /**
+   * All messages.
+   */
+  VERBOSE,
 }
 
 /**
@@ -50,6 +50,15 @@ export enum DEBUG_LEVEL {
  */
 export function enableLogLevel(level: DEBUG_LEVEL) {
   (self as any).DEBUG = level;
+}
+export function enableLogLevelFromString(level: string) {
+  switch (level) {
+    case 'verbose': return enableLogLevel(DEBUG_LEVEL.VERBOSE);
+    case 'info': return enableLogLevel(DEBUG_LEVEL.INFO);
+    case 'warning': return enableLogLevel(DEBUG_LEVEL.WARNING);
+    case 'error': return enableLogLevel(DEBUG_LEVEL.ERROR);
+    default: return enableLogLevel(DEBUG_LEVEL.NONE);
+  }
 }
 
 declare const DEBUG: DEBUG_LEVEL;

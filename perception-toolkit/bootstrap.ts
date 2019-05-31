@@ -16,19 +16,20 @@
  */
 
 import { ActionButton, Card } from '../src/elements/index.js';
-import { DeviceSupport } from '../src/support/device-support.js';
-import { GetUserMediaSupport } from '../src/support/get-user-media.js';
-import { WasmSupport } from '../src/support/wasm.js';
-import { fire } from '../src/utils/fire.js';
-import { PerceptionToolkit } from './defs.js';
 import {
   cameraAccessDenied,
   captureClosed,
   captureStarted,
   captureStopped,
-  perceivedResults,
-  markerDetect
-} from './events.js';
+  markerDetect,
+  perceivedResults
+} from '../src/events.js';
+import { DeviceSupport } from '../src/support/device-support.js';
+import { GetUserMediaSupport } from '../src/support/get-user-media.js';
+import { WasmSupport } from '../src/support/wasm.js';
+import { fire } from '../src/utils/fire.js';
+import { enableLogLevelFromString } from '../src/utils/logger.js';
+import { PerceptionToolkit } from './defs.js';
 
 declare global {
   interface Window {
@@ -38,7 +39,7 @@ declare global {
 
 const deviceNotSupported = 'pt.devicenotsupported';
 
-window.PerceptionToolkit = window.PerceptionToolkit || {};
+window.PerceptionToolkit = window.PerceptionToolkit || {} as PerceptionToolkit;
 window.PerceptionToolkit.config = window.PerceptionToolkit.config || {};
 
 // Expose events.
@@ -48,8 +49,8 @@ window.PerceptionToolkit.Events = {
   CaptureStarted: captureStarted,
   CaptureStopped: captureStopped,
   DeviceNotSupported: deviceNotSupported,
+  MarkerDetect: markerDetect,
   PerceivedResults: perceivedResults,
-  MarkerDetect: markerDetect
 };
 
 // Expose elements.
@@ -69,6 +70,8 @@ window.PerceptionToolkit.Functions = {
 if (window.PerceptionToolkit.config.onload) {
   window.PerceptionToolkit.config.onload.call(null);
 }
+
+enableLogLevelFromString(window.PerceptionToolkit.config.debugLevel || 'error');
 
 /**
  * Perform a device support test, then load the loader & onboarding.
@@ -129,7 +132,6 @@ async function initializeExperience() {
 
   const { showLoader, hideLoader } = await import('./loader.js');
   const { config } = window.PerceptionToolkit;
-  const { artifactSources, detectionMode = 'passive' } = config;
 
   if (config && config.onboardingImages && config.onboarding) {
     hideLoader();
@@ -145,7 +147,7 @@ async function initializeExperience() {
   // Now the experience is inited, update the closeExperience fn.
   window.PerceptionToolkit.Functions.closeExperience = close;
 
-  initialize({ detectionMode, artifactSources });
+  initialize();
 }
 
 function addCardToPage({msg = '', cls = ''}) {
