@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 import { hideOverlay, showOverlay } from '../elements/overlay/overlay.js';
 
 /**
@@ -29,11 +28,12 @@ function onConnectivityChanged() {
   }
 }
 
-
 export function observeConnectivityChanges() {
   window.addEventListener('offline', onConnectivityChanged);
+  window.addEventListener('online', onConnectivityChanged);
 }
 
 export function unobserveConnectivityChanges() {
-  window.addEventListener('online', onConnectivityChanged);
+  window.removeEventListener('offline', onConnectivityChanged);
+  window.removeEventListener('online', onConnectivityChanged);
 }
