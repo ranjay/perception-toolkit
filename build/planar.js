@@ -53,7 +53,9 @@ async function build() {
       name: 'Planar'
     }
   }
-  const planarFiles = await promGlob('src/planar/*.ts');
+  const planarFiles = await promGlob('src/planar/*.ts', {
+    ignore: ['**/*_test.ts']
+  });
   for (const planarFile of planarFiles) {
     const newFileName = basename(planarFile).replace(/ts$/, 'js');
     const file = `lib/planar/${newFileName}`;

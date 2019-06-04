@@ -17,7 +17,7 @@
 const { assert } = chai;
 
 import { spy } from 'sinon';
-import { Module, ModuleMock } from './planar-defs.js';
+import { Module, ModuleMock, PrerunCallback } from './planar-defs.js';
 import { PlanarTargetDetector } from './planar-detector.js';
 
 declare global {
@@ -26,7 +26,10 @@ declare global {
   }
 }
 
-let preRunSpy;
+let preRunSpy: {
+  getCalls(): Array<{ args: PrerunCallback[] }>
+  restore(): void;
+};
 function processPreRuns() {
   const proxyCalls = preRunSpy.getCalls();
   if (proxyCalls.length === 0) {
@@ -38,7 +41,7 @@ function processPreRuns() {
       continue;
     }
 
-    args[0].call();
+    args[0].call(null);
   }
 }
 

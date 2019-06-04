@@ -88,24 +88,30 @@ class Detector {
     }
   }
 
-  addTarget(data: Uint8Array, image: DetectableImage): Promise<void> {
+  addTarget(data: Uint8Array, image: DetectableImage): Promise<number> {
     return new Promise((resolve) => {
       this.worker.postMessage({ type: 'add', data });
       this.worker.onmessage = (e) => {
         this.targets.set(e.data as number, image);
         log(`Target stored: ${image.id}, number ${e.data}`, DEBUG_LEVEL.VERBOSE);
+        resolve(e.data);
+      };
+    });
+  }
+
+  removeTarget(data: number): Promise<void> {
+    return new Promise((resolve) => {
+      this.worker.postMessage({ type: 'remove', data });
+      this.worker.onmessage = (e) => {
+        this.targets.delete(e.data as number);
+        log(`Target removed: number ${e.data}`, DEBUG_LEVEL.VERBOSE);
         resolve();
       };
     });
   }
 
-  removeTarget(id: number): Promise<void> {
-    return new Promise((resolve) => {
-      this.worker.postMessage({ type: 'remove', id });
-      this.worker.onmessage = (e) => {
-        resolve();
-      };
-    });
+  clear() {
+    this.targets.clear();
   }
 }
 
@@ -121,7 +127,7 @@ export async function detectPlanarImages(data: ImageData, {root = ''} = {}) {
 
 export async function addDetectionTarget(data: Uint8Array,
                                          image: DetectableImage,
-                                         {root = ''} = {}): Promise<void> {
+                                         {root = ''} = {}): Promise<number> {
   if (!detector) {
     detector = new Detector(root);
   }
@@ -148,4 +154,13 @@ export async function getTarget(id: string,
 
   await detector.isReady;
   return detector.getTarget(id);
+}
+
+export async function reset({root = ''} = {}) {
+  if (!detector) {
+    detector = new Detector(root);
+  }
+
+  await detector.isReady;
+  return detector.clear();
 }

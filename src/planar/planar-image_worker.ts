@@ -89,7 +89,7 @@ self.onmessage = (e: MessageEvent) => {
     // Remove a target.
     case 'remove':
       detector.cancelDetection(data);
-      host.postMessage();
+      host.postMessage(data);
       break;
   }
 };
