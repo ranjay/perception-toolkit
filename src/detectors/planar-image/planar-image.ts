@@ -29,6 +29,7 @@ class Detector {
     this.isReadyInternal = new Promise((resolve) => {
       this.worker = new Worker(`${root}/lib/planar/planar-image_worker.js`);
       this.worker.onmessage = async (e) => {
+        /* istanbul ignore if */
         if (e.data === 'ready') {
           resolve();
         }
@@ -54,6 +55,7 @@ class Detector {
       const startTime = performance.now();
       this.worker.postMessage({ type: 'process', data });
       this.worker.onmessage = (e) => {
+        /* istanbul ignore if */
         if (e.data === null) {
           return [];
         }
@@ -63,6 +65,7 @@ class Detector {
         // Remap to actual target values and filter out empties.
         const ids = matches.map((id) => {
           const target = this.targets.get(id);
+          /* istanbul ignore if */
           if (!target) {
             return { value: null };
           }
@@ -117,6 +120,7 @@ class Detector {
 
 let detector: Detector;
 export async function detectPlanarImages(data: ImageData, {root = ''} = {}) {
+  /* istanbul ignore if */
   if (!detector) {
     detector = new Detector(root);
   }
@@ -128,6 +132,7 @@ export async function detectPlanarImages(data: ImageData, {root = ''} = {}) {
 export async function addDetectionTarget(data: Uint8Array,
                                          image: DetectableImage,
                                          {root = ''} = {}): Promise<number> {
+  /* istanbul ignore if */
   if (!detector) {
     detector = new Detector(root);
   }
@@ -138,6 +143,7 @@ export async function addDetectionTarget(data: Uint8Array,
 
 export async function removeDetectionTarget(id: number,
                                             {root = ''} = {}): Promise<void> {
+  /* istanbul ignore if */
   if (!detector) {
     detector = new Detector(root);
   }
@@ -148,6 +154,7 @@ export async function removeDetectionTarget(id: number,
 
 export async function getTarget(id: string,
                                 {root = ''} = {}) {
+  /* istanbul ignore if */
   if (!detector) {
     detector = new Detector(root);
   }
@@ -157,6 +164,7 @@ export async function getTarget(id: string,
 }
 
 export async function reset({root = ''} = {}) {
+  /* istanbul ignore if */
   if (!detector) {
     detector = new Detector(root);
   }

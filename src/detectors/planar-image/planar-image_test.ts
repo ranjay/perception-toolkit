@@ -21,7 +21,8 @@ import {
   addDetectionTarget,
   detectPlanarImages,
   removeDetectionTarget,
-  reset
+  reset,
+  getTarget
 } from './planar-image.js';
 
 async function loadDataFile() {
@@ -63,5 +64,13 @@ describe('Planar Image Detector', () => {
 
     const postRemovalDetections = await detectPlanarImages(await imageData, { root: '/base' });
     assert.equal(postRemovalDetections.length, 0);
+  });
+
+  it('gets targets', async () => {
+    const data = await loadDataFile();
+    const src = { id: 'Lighthouse', media: [] };
+    await addDetectionTarget(new Uint8Array(data), src);
+    const image = await getTarget('Lighthouse');
+    assert.equal(image.id, 'Lighthouse');
   });
 });
