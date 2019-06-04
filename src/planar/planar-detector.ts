@@ -20,12 +20,13 @@
  * the results from the wasm-run Drishti detection graph.
  */
 
-declare global {
-  const Module: any;
-}
-
 import { DEBUG_LEVEL, log } from '../utils/logger.js';
+import { Module } from './planar-defs.js';
 import { WasmHeapWriter } from './wasm-heap-writer.js';
+
+declare global {
+  const Module: Module;
+}
 
 /**
  * A class for processing image frames and returning any planar target
@@ -57,8 +58,12 @@ export class PlanarTargetDetector {
    *     planar_target_detector_internal.cc, so please see there for more info.
    */
   process(imageData: ImageData, timestamp: number) {
+    /* istanbul ignore else */
     if (!this.hasLoaded) {
-      return null;
+      return {
+        get: (r: number) => ({id: 0}),
+        size: () => 0,
+      };
     }
     const width = imageData.width;
     const height = imageData.height;
@@ -66,17 +71,20 @@ export class PlanarTargetDetector {
     // (Re-)allocate image memory space if needed.
     const size = 4 * width * height;
     if (this.pixelsSize !== size) {
+      /* istanbul ignore if */
       if (this.pixelsPtr) {
         Module._free(this.pixelsPtr);
       }
       this.pixelsPtr = Module._malloc(size);
       this.pixelsSize = size;
     }
-    Module.HEAPU8.set(imageData.data, this.pixelsPtr);
 
-    if (!this.pixelsPtr) {
+    /* istanbul ignore if */
+    if (this.pixelsPtr === null) {
       throw new Error('Unable to reserve pixel pointer with malloc');
     }
+
+    Module.HEAPU8.set(imageData.data, this.pixelsPtr);
 
     const wasmHeapWriterByteCount = 24;  // 4 ints and 1 ll (timestamp)
     const frameDataWriter = new WasmHeapWriter(wasmHeapWriterByteCount);
@@ -89,6 +97,10 @@ export class PlanarTargetDetector {
     frameDataWriter.writeFloat64(timestamp);
 
     const frameDataPtr = frameDataWriter.getData();
+    /* istanbul ignore if */
+    if (frameDataPtr === null) {
+      throw new Error('Unable to obtain data');
+    }
 
     // We use embind version so we can tap more easily into std::vector
     const outputVec = Module.process(frameDataPtr);
@@ -113,12 +125,19 @@ export class PlanarTargetDetector {
    *     Planar Target Indexer utility.
    */
   addDetectionWithId(objectId: number, detectorIndexData: Uint8Array) {
+    /* istanbul ignore if */
     if (!this.hasLoaded) {
       log('Cannot add detection until detection has started.', DEBUG_LEVEL.ERROR);
       return;
     }
     const size = detectorIndexData.length;
     const indexPtr = Module._malloc(size);
+
+    /* istanbul ignore if */
+    if (indexPtr === null) {
+      log('Unable to reserve memory', DEBUG_LEVEL.ERROR, 'Planar Image Detector');
+      return;
+    }
 
     Module.HEAPU8.set(detectorIndexData, indexPtr);
     Module._addObjectIndexWithId(objectId, size, indexPtr);
@@ -148,6 +167,7 @@ export class PlanarTargetDetector {
    *     detecting.
    */
   cancelDetection(objectId: number) {
+    /* istanbul ignore if */
     if (!this.hasLoaded) {
       log('Cannot cancel detection until detection has started.', DEBUG_LEVEL.ERROR);
       return;

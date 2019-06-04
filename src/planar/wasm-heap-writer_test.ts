@@ -17,62 +17,21 @@
 
 const { assert } = chai;
 
+import { ModuleMock } from './planar-defs.js';
 import { WasmHeapWriter } from './wasm-heap-writer.js';
-
-declare global {
-  interface Window {
-    Module: {
-      HEAPU8: Uint8Array;
-      HEAPU32: Uint32Array;
-      HEAPF32: Float32Array;
-      HEAPF64: Float64Array;
-      _malloc(size: number): void;
-    };
-  }
-}
-
-let memory: ArrayBuffer;
-class Module {
-  constructor(public invalidMalloc = false, public mallocOffset = 0) {}
-
-  _malloc(size: number) {
-    if (this.invalidMalloc) {
-      return null;
-    }
-
-    memory = new ArrayBuffer(this.mallocOffset + size);
-    return this.mallocOffset;
-  }
-
-  get HEAPU8() {
-    return new Uint8Array(memory);
-  }
-
-  get HEAPU32() {
-    return new Uint32Array(memory);
-  }
-
-  get HEAPF32() {
-    return new Float32Array(memory);
-  }
-
-  get HEAPF64() {
-    return new Float64Array(memory);
-  }
-}
 
 describe('WasmHeapWriter', () => {
   beforeEach(() => {
-    window.Module = new Module();
+    window.Module = new ModuleMock();
   });
 
   it('reserves the correct space', () => {
     const writer = new WasmHeapWriter(32);
-    assert.equal(memory.byteLength, 32);
+    assert.equal(window.Module.__memory!.byteLength, 32);
   });
 
   it('throws for bad reservations', () => {
-    window.Module = new Module(true);
+    window.Module = new ModuleMock(true);
     assert.throws(() => new WasmHeapWriter(-1));
   });
 
@@ -84,7 +43,7 @@ describe('WasmHeapWriter', () => {
     writer.writeBool(true);
 
     const expected = Uint8Array.from([1, 0, 0, 0, 1, 0, 0, 0]);
-    assert.deepEqual(new Uint8Array(memory), expected);
+    assert.deepEqual(new Uint8Array(window.Module.__memory), expected);
   });
 
   it('snaps to double words', () => {
@@ -98,7 +57,7 @@ describe('WasmHeapWriter', () => {
       1, 0, 0, 0, 0, 0, 0, 0,
       1, 0, 0, 0, 0, 0, 0, 0
     ]);
-    assert.deepEqual(new Uint8Array(memory), expected);
+    assert.deepEqual(new Uint8Array(window.Module.__memory), expected);
   });
 
   it('writes bools', () => {
@@ -111,7 +70,7 @@ describe('WasmHeapWriter', () => {
     const expected = Uint8Array.from([
       1, 0, 1, 0, 0, 0, 0, 0
     ]);
-    assert.deepEqual(new Uint8Array(memory), expected);
+    assert.deepEqual(new Uint8Array(window.Module.__memory), expected);
   });
 
   it('writes int32', () => {
@@ -125,7 +84,7 @@ describe('WasmHeapWriter', () => {
     const expected = Uint8Array.from([
       1, 1, 1, 1, 0, 0, 0, 0
     ]);
-    assert.deepEqual(new Uint8Array(memory), expected);
+    assert.deepEqual(new Uint8Array(window.Module.__memory), expected);
   });
 
   it('snaps int32s', () => {
@@ -143,7 +102,7 @@ describe('WasmHeapWriter', () => {
     const expected = Uint8Array.from([
       1, 0, 0, 0, 1, 1, 1, 1
     ]);
-    assert.deepEqual(new Uint8Array(memory), expected);
+    assert.deepEqual(new Uint8Array(window.Module.__memory), expected);
   });
 
   it('writes float64s', () => {
@@ -152,7 +111,7 @@ describe('WasmHeapWriter', () => {
     const value1 = 1 << 44;
     writer.writeFloat64(value0);
     writer.writeFloat64(value1);
-    const memView = new Float64Array(memory);
+    const memView = new Float64Array(window.Module.__memory);
     assert.equal(memView[0], value0);
     assert.equal(memView[1], value1);
   });
@@ -165,7 +124,7 @@ describe('WasmHeapWriter', () => {
 
     const value = 1 << 54;
     writer.writeFloat64(value);
-    const memView = new Float64Array(memory);
+    const memView = new Float64Array(window.Module.__memory);
     assert.equal(memView[1], value);
   });
 
@@ -180,7 +139,7 @@ describe('WasmHeapWriter', () => {
     const expected = Uint8Array.from([
       1, 1, 1, 1, 0, 0, 0, 0
     ]);
-    assert.deepEqual(new Uint8Array(memory), expected);
+    assert.deepEqual(new Uint8Array(window.Module.__memory), expected);
   });
 
   it('writes float32s', () => {
@@ -189,7 +148,7 @@ describe('WasmHeapWriter', () => {
     const value1 = 1 << 17;
     writer.writeFloat(value0);
     writer.writeFloat(value1);
-    const memView = new Float32Array(memory);
+    const memView = new Float32Array(window.Module.__memory);
     assert.equal(memView[0], value0);
     assert.equal(memView[1], value1);
   });
@@ -202,13 +161,13 @@ describe('WasmHeapWriter', () => {
 
     const value = 1 << 15;
     writer.writeFloat(value);
-    const memView = new Float32Array(memory);
+    const memView = new Float32Array(window.Module.__memory);
     assert.equal(memView[1], value);
   });
 
   it('offsets correctly', () => {
     const offset = 8;  // Start at 8 bytes in.
-    window.Module = new Module(false, offset);
+    window.Module = new ModuleMock(false, offset);
     const writer = new WasmHeapWriter(8);
     writer.writeBool(1);
 
@@ -222,6 +181,6 @@ describe('WasmHeapWriter', () => {
       0, 0, 0, 0, 0, 0, 0, 0,
       1, 0, 0, 0, 0, 0, 0, 0,
     ]);
-    assert.deepEqual(new Uint8Array(memory), expected);
+    assert.deepEqual(new Uint8Array(window.Module.__memory), expected);
   });
 });
