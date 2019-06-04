@@ -1,6 +1,8 @@
 # Simple Config Demo
 
-This demo showcases the simplest way to load Perception Toolkit.  Start by taking a look at [`index.html`](./index.html).
+This demo showcases the simplest way to load Perception Toolkit, using mostly default options.
+
+The visual content we will be searching come from two HTML [pages](./pages), managed via the `artifactSources` config option.
 
 ## Instructions
 

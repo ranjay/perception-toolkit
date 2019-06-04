@@ -22,6 +22,7 @@ import { ArtifactLoader } from '../../artifacts/artifact-loader.js';
 import { GeoCoordinates } from '../../artifacts/schema/core-schema-org.js';
 import { ARArtifact } from '../../artifacts/schema/extension-ar-artifacts.js';
 import { LocalArtifactStore } from '../../artifacts/stores/local-artifact-store.js';
+import { ArtifactStore } from '../../artifacts/stores/artifact-store.js';
 
 type ShouldFetchArtifactsFromCallback = ((url: URL) => boolean) | string[];
 

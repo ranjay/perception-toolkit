@@ -1,31 +1,21 @@
-# Advanced Config Demo
+# Custom Artifact Store Demo
 
-This demo showcases a few more advanced configuration options for Perception Toolkit in [`index.html`](./index.html).
+This demo showcases how to create your own Artifact Store.  One common reason is to use a cloud artifact service.
 
-Adds support for scanning unrecognized Markers -- scan a random barcode to see a default card.
+By default, the Perception Toolkit will load ARArtifacts via JSON-LD markup from pages on your side, [configured via `artifactSources`](../simple).
+
+While this is convenient, it could be costly if you have many/large pages which are not already cached.  Instead, you can either:
+
+* load all ARArtifacts at once, [using an Artifact Map](../artifact-map), or
+* create your own artifact store, which manages artifacts however you want (as we do in this demo)
 
 ## Instructions
 
-1. Print out [barcode.gif](./products/barcode.gif), which represents the [product page](./products/product.html).
+1. Print the product images from the [product pages](./products).
 2. Run `npm run build && npm run serve`
-3. Open [`https://localhost:8080/demo/advanced-config/index.html`](https://localhost:8080/demo/advanced-config/index.html)
-4. Hit "Getting Started" and follow the onboarding instructions.
-5. Scan the barcode!
-6. Try scanning other barcodes, without registering them.
+3. Open [`https://localhost:8080/demo/custom-artifact-store/index.html`](https://localhost:8080/demo/custom-artifact-store/index.html)
+4. Scan a barcode.
 
 ## How does it work?
 
-1. Dig in to the script on [`index.html`](./index.html) to see how the `PerceptionToolkit` is created.
-2. Take a look at how onboarding it toggled, using a saved setting in indexeddb.
-3. Take a look at how events are handled (especially `Events.PerceivedResults`).
-
-## Bonus: Dig In!
-
-Change the `Event.PerceivedResults` event in order to:
-
-* Handle errors your own way.
-  * Perhaps offer a link to text-based search, or full product listing?
-  * See code comments in `index.html` for clues where to modify code.
-* Customize the UI for normal results.
-  * Perhaps by adding a custom share button?
-  * See code comments in `index.html` for clues where to modify code.
+TODO

@@ -38,166 +38,87 @@
   <script src="/third_party/idb-keyval/idb-keyval-iife.min.js"></script>
 
   <script>
+    /*
+     * In this demo, we statically define a small number of ARArtifacts...
+     * but we could have fetched this list from a cloud service, or,
+     * fetched only the relevant artifacts on demand (e.g. when within a specific geofence,
+     * or after a specific Marker is detected)
+     */
+    const Artifacts = [
+      {
+        "@context": "https://schema.googleapis.com/",
+        "@type": "ARArtifact",
+        "arTarget": {
+          "@type": "Barcode",
+          "text": "012345678905"
+        },
+        "arContent": {
+          "@type": "WebPage",
+          "url": "./product1.html",
+          "name": "Product 1",
+          "description": "This is a product with a barcode",
+          "image": ""
+        }
+      },
+      {
+        "@context": "https://schema.googleapis.com/",
+        "@type": "ARArtifact",
+        "arTarget": {
+          "@type": "Barcode",
+          "text": "012345678905"
+        },
+        "arContent": {
+          "@type": "WebPage",
+          "url": "./product2.html",
+          "name": "Product 2",
+          "description": "This is a product with a barcode",
+          "image": ""
+        }
+      },
+      {
+        "@context": "https://schema.googleapis.com/",
+        "@type": "ARArtifact",
+        "arTarget": {
+          "@type": "Barcode",
+          "text": "012345678905"
+        },
+        "arContent": {
+          "@type": "WebPage",
+          "url": "./product3.html",
+          "name": "Product 3",
+          "description": "This is a product with a barcode",
+          "image": ""
+        }
+      }
+    ];
     class CustomArtifactStore {
-      async getDetectableImages(geo) {
+      async getDetectableImages() {
         return [];
       }
       async findRelevantArtifacts(nearbyMarkers, geo, detectedImages) {
-        const artifact = 
-        {
-          "@context": "https://schema.googleapis.com/",
-          "@type": "ARArtifact",
-          "arTarget": {
-            "@type": "Barcode",
-            "text": "012345678905"
-          },
-          "arContent": {
-            "@type": "WebPage",
-            "url": "product.html",
-            "name": "Product Info",
-            "description": "This is a product with a barcode",
-            "image": "http://localhost:8080/demo/advanced-config/products/barcode.gif"
-          }
-        }
+        const ret = [];
         for (const marker of nearbyMarkers) {
-          if (marker.value === artifact.arTarget.text) {
-            return [{
-              target: artifact.arTarget,
-              content: artifact.arContent,
-              artifact
-            }];
-          }
-        }
-        return [];
-     }
-    };
-
-    async function init() {
-      const onboarded = await idbKeyval.get('onboarded');
-      if (!onboarded) {
-        // Store for next time.
-        await idbKeyval.set('onboarded', true);
-      }
-
-      const cardContainer = document.body.querySelector('.container');
-
-      window.PerceptionToolkit = window.PerceptionToolkit || {};
-      window.PerceptionToolkit.config = {
-        // Debug level.
-        debugLevel: 'verbose',
-
-        // The element to use to launch.
-        button: document.getElementById('get-started'),
-
-        // The container for generated cards.
-        cardContainer,
-
-        // Whether to show the onboarding flow. Note that this is superseded
-        // internally by a flag
-        onboarding: !onboarded,
-
-        // Which images to show in carousel during onboarding
-        onboardingImages: [
-          '/demo/common/images/step1.jpg',
-          '/demo/common/images/step2.jpg',
-          '/demo/common/images/step3.jpg'
-        ],
-
-        // How long after launching camera should we should instructions to user (in ms).
-        // If a result is scanned before this timeout, hint will be cancelled.
-        hintTimeout: 7000,
-        
-        // Sources from which to load AR ARtifacts.  Will load after Perception init.
-        artifactStores: [ new CustomArtifactStore ],
-        
-        onload() {
-          addEventListeners();
-        }
-      };
-
-      // When the toolkit loads, add event listeners.
-      function addEventListeners() {
-        const { Events, Elements } = window.PerceptionToolkit;
-
-        // Fires with a diff of markers found & lost.
-        window.addEventListener(Events.PerceivedResults, (evt) => {
-          const { found, lost } = evt.detail;
-
-          // First, automatically remove any "not recognized" cards if we now have content.
-          if (found.length !== 0) {
-            const notRecognizedCard =
-                cardContainer.querySelector('[data-not-recognized]');
-            if (notRecognizedCard) {
-              notRecognizedCard.remove();
+          for (const artifact of Artifacts) {
+            if (marker.value === artifact.arTarget.text) {
+              return ret.push({
+                target: artifact.arTarget,
+                content: artifact.arContent,
+                artifact
+              });
             }
           }
-
-          // ...If we still have any cards on screen, leave them there.
-          // Note: Alternatively, could create a carousel of results.
-          if (cardContainer.childNodes.length > 0) {
-            return;
-          }
-
-          // If this is an unrecognized result.  Let's create an "error" card.
-          if (found.length === 0 && found.length === 0) {
-            // Take ownership of rendering.
-            evt.preventDefault();
-
-            /* 
-             * Dig In here.  Customize what to do in case of error!
-             */
-
-            const card = new Elements.Card();
-            card.src = 'Sorry, this item was not recognized.';
-            card.dataset.notRecognized = true;
-            cardContainer.appendChild(card);
-            return;
-          }
-          
-          // If this is a new result, show a custom card, in order to create a share button.
-          if (found.length > 0) {
-            // Take ownership of rendering.
-            evt.preventDefault();
-
-            const card = new Elements.Card();
-            card.src = found[0].content;
-            cardContainer.appendChild(card);
-
-            /*
-            // Dig In here.  Customize the Card UI yourself!
-            const button = new Elements.ActionButton();
-            button.label = 'Share';
-            button.addEventListener('click', () => {
-              console.log('clicked');
-              card.close();
-            })
-            card.appendChild(button);
-            */
-
-            return;
-          }
-        });
-
-        // Fires the if the user denies camera access.
-        window.addEventListener(Events.CameraAccessDenied, () => {
-          const card = new Elements.Card();
-          card.src = 'Camera unavailable or access denied';
-          cardContainer.appendChild(card);
-        });
-
-        // Fires the if the device does not have the required APIs.
-        window.addEventListener(Events.DeviceNotSupported, () => {
-          console.warn('Device Not Supported');
-        });
+        }
+        return ret;
       }
+    };
 
-      // Embed the toolkit.
-      const toolkit = document.createElement('script');
-      toolkit.src = '/lib/bundled/bootstrap.js';
-      document.head.appendChild(toolkit);
-    }
+    window.PerceptionToolkit = window.PerceptionToolkit || {};
+    window.PerceptionToolkit.config = {
+      button: document.getElementById('get-started'),
+      cardContainer: document.body.querySelector('.container'),
 
-    init();
+      artifactStores: [ new CustomArtifactStore ],
+    };
   </script>
 </body>
 </html>
