@@ -39,6 +39,12 @@ import { ArtifactStore } from '../src/artifacts/stores/artifact-store.js';
  */
 export interface PerceptionToolkitConfig {
   /**
+   * Whether the Toolkit should show a message when a detection occurs for an
+   * unknown item. Defaults to true.
+   */
+  acknowledgeUnknownItems?: boolean;
+
+  /**
    * The button to hook onto for launching the experience.
    */
   button?: HTMLElement;
@@ -95,14 +101,34 @@ export interface PerceptionToolkitConfig {
    * * `verbose`: All.
    * * `none`: None.
    */
-  debugLevel?: DEBUG_LEVEL;
+  debugLevel?: 'error' | 'warning' | 'info' | 'verbose' | 'none';
 
   /**
    * Which detection mode to use:
-   * * `passive`: capture is always on. (default)
+   * * `passive`: capture is always on, throttled. (default)
+   * * `burst`: capture is always on, goes as fast as possible.
    * * `active`: the user must tap to capture a frame for processing.
    */
-  detectionMode?: 'active' | 'passive';
+  detectionMode?: 'active' | 'passive' | 'burst';
+
+  /**
+   * Which detectors to load. Defaults to 'lazy', which means no detectors are
+   * preloaded ahead of detection starting.
+   * * `all`: Load all detectors (uses most bandwidth)
+   * * `lazy`: Loads detectors on demand (uses least bandwidth)
+   *
+   * Alternatively you can specify on a per-detector basis:
+   *
+   * ```
+   * detectors: {
+   *   'barcode': true,
+   *   'image': 'lazy'
+   * }
+   * ```
+   */
+  detectors?: 'all' | 'lazy' | {
+    [key: string]: boolean | 'lazy'
+  };
 
   /**
    * The time, in milliseconds, to wait before showing a notification to the user
@@ -110,6 +136,11 @@ export interface PerceptionToolkitConfig {
    * the camera feed.
    */
   hintTimeout?: number;
+
+  /**
+   * The maximum number of cards to show at once. Defaults to 1.
+   */
+  maxCards?: number;
 
   /**
    * Whether or not to show the onboarding flow. If `true` then `onboardingImages`

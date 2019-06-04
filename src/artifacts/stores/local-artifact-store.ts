@@ -73,7 +73,7 @@ export class LocalArtifactStore implements ArtifactStore {
     ];
   }
 
-  async getDetectableImages(geo: GeoCoordinates): Promise<DetectableImage[]> {
+  async getDetectableImages(): Promise<DetectableImage[]> {
     return this.imageStore.getDetectableImages();
   }
 }

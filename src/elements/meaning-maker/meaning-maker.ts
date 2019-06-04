@@ -15,14 +15,13 @@
  * limitations under the License.
  */
 
-import { DetectableImage, DetectedImage } from '../defs/detected-image.js';
-import { Marker } from '../defs/marker.js';
-import { ArtifactDealer, NearbyResultDelta } from '../src/artifacts/artifact-dealer.js';
-import { ArtifactLoader } from '../src/artifacts/artifact-loader.js';
-import { GeoCoordinates } from '../src/artifacts/schema/core-schema-org.js';
-import { ARArtifact } from '../src/artifacts/schema/extension-ar-artifacts.js';
-import { LocalArtifactStore } from '../src/artifacts/stores/local-artifact-store.js';
-import { ArtifactStore } from '../src/artifacts/stores/artifact-store.js';
+import { DetectableImage, DetectedImage } from '../../../defs/detected-image.js';
+import { Marker } from '../../../defs/marker.js';
+import { ArtifactDealer, NearbyResultDelta } from '../../../src/artifacts/artifact-dealer.js';
+import { ArtifactLoader } from '../../artifacts/artifact-loader.js';
+import { GeoCoordinates } from '../../artifacts/schema/core-schema-org.js';
+import { ARArtifact } from '../../artifacts/schema/extension-ar-artifacts.js';
+import { LocalArtifactStore } from '../../artifacts/stores/local-artifact-store.js';
 
 type ShouldFetchArtifactsFromCallback = ((url: URL) => boolean) | string[];
 
@@ -100,8 +99,8 @@ export class MeaningMaker {
    * Each DetectableImage has one unique id, and also a list of potential Media which encodes it.
    * It is up to the caller to select the correct media encoding.
    */
-  async getDetectableImages(geo: GeoCoordinates): Promise<DetectableImage[]> {
-    return this.artstore.getDetectableImages(geo);
+  async getDetectableImages(): Promise<DetectableImage[]> {
+    return this.artstore.getDetectableImages();
   }
 
   /*
