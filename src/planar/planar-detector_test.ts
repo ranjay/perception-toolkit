@@ -41,7 +41,7 @@ function processPreRuns() {
       continue;
     }
 
-    args[0].call(null);
+    args[0].call(undefined);
   }
 }
 
