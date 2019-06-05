@@ -29,7 +29,12 @@ module.exports = function(config) {
         served: true,
       },
       {
-        pattern: 'test-assets/**/*.html',
+        pattern: 'lib/planar/**/*.js',
+        included: false,
+        served: true,
+      },
+      {
+        pattern: 'test-assets/**/*.*',
         included: false,
         served: true,
       },
