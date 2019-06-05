@@ -39,7 +39,6 @@ async function loadImageAsImageData() {
 
   canvas.width = 640;
   canvas.height = 480;
-  document.body.appendChild(canvas);
   ctx.fillRect(0, 0, 640, 480);
   ctx.drawImage(bitmap, 100, 100, 325, 213);
   return ctx.getImageData(0, 0, canvas.width, canvas.height);
