@@ -50,7 +50,7 @@
         "@type": "ARArtifact",
         "arTarget": {
           "@type": "Barcode",
-          "text": "012345678905"
+          "text": "012345678912"
         },
         "arContent": {
           "@type": "WebPage",
@@ -65,7 +65,7 @@
         "@type": "ARArtifact",
         "arTarget": {
           "@type": "Barcode",
-          "text": "012345678905"
+          "text": "012345678929"
         },
         "arContent": {
           "@type": "WebPage",
@@ -80,7 +80,7 @@
         "@type": "ARArtifact",
         "arTarget": {
           "@type": "Barcode",
-          "text": "012345678905"
+          "text": "012345678936"
         },
         "arContent": {
           "@type": "WebPage",
@@ -102,7 +102,6 @@
             if (marker.value === artifact.arTarget.text) {
               return ret.push({
                 target: artifact.arTarget,
-                content: artifact.arContent,
                 artifact
               });
             }
@@ -120,5 +119,6 @@
       artifactStores: [ new CustomArtifactStore ],
     };
   </script>
+  <script src="/lib/bundled/bootstrap.js"></script>
 </body>
 </html>
