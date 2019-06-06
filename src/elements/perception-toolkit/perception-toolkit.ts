@@ -582,13 +582,13 @@ export class PerceptionToolkit extends HTMLElement {
     }
 
     // Create a card for every found marker.
-    for (const { content } of contentDiff.found) {
+    for (const { artifact: { arContent } } of contentDiff.found) {
       // Prevent multiple cards from showing.
       if (cardContainer.childNodes.length >= maxCards) {
         continue;
       }
 
-      const cardContent = content as CardData;
+      const cardContent = arContent as CardData;
       const card = new Card();
       card.src = cardContent;
       cardContainer.appendChild(card);

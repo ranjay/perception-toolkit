@@ -15,20 +15,15 @@
  * limitations under the License.
  */
 
-import { flat } from '../utils/flat.js';
-import { Marker } from '../../defs/marker.js';
-import { generateMarkerId } from '../utils/generate-marker-id.js';
-import { ARArtifact, ARTargetTypes, ARContentTypes } from './schema/extension-ar-artifacts.js';
-import { GeoCoordinates } from './schema/core-schema-org.js';
-import { ArtifactStore } from './stores/artifact-store.js';
 import { DetectedImage } from '../../defs/detected-image.js';
+import { Marker } from '../../defs/marker.js';
+import { flat } from '../utils/flat.js';
+import { generateMarkerId } from '../utils/generate-marker-id.js';
+import { GeoCoordinates } from './schema/core-schema-org.js';
+import { ARArtifact, ARContentTypes, ARTargetTypes } from './schema/extension-ar-artifacts.js';
+import { ArtifactStore, NearbyResult } from './stores/artifact-store.js';
 
-export interface NearbyResult {
-  target?: ARTargetTypes;
-  content?: ARContentTypes;
-  artifact: ARArtifact;
-}
-
+export { NearbyResult };
 export interface NearbyResultDelta {
   found: NearbyResult[];
   lost: NearbyResult[];
@@ -71,43 +66,31 @@ export class ArtifactDealer {
     return this.generateDiffs();
   }
 
-  // TODO (#34): Change ArtStore's `findRelevantArtifacts` to be async
-  // TODO (#33): Replace map+flat with flatMap once it is polyfilled for all platforms.
   private async generateDiffs(): Promise<NearbyResultDelta> {
-    // 1. Using current context (geo, markers), ask artstores to compute relevant artifacts
-    const pendingNearbyResults: Set<NearbyResult> = new Set(flat(await Promise.all(this.artstores.map((artstore) => {
+    // Using current context (geo, markers), ask artstores to compute relevant artifacts
+    const allStoreResults = await Promise.all(this.artstores.map((artstore) => {
       return artstore.findRelevantArtifacts(
         Array.from(this.nearbyMarkers.values()),
         this.currentGeolocation,
         Array.from(this.nearbyImages.values())
       );
-    }))));
+    }));
+    const uniqueNearbyResults: Set<NearbyResult> = new Set(flat(allStoreResults));
 
-    // 2. Diff with previous list to compute new/old artifacts.
-    //    New ones are those which haven't appeared before.
-    //    Old ones are those which are no longer nearby.
-    //    The remainder (intersection) are not reported.
-    const newNearbyResults: NearbyResult[] = [...pendingNearbyResults].filter(a => !this.nearbyResults.has(a));
-    const oldNearbyresults: NearbyResult[] = [...this.nearbyResults].filter(a => !pendingNearbyResults.has(a));
+    // Diff with previous list to compute new/old artifacts.
+    //  - New ones are those which haven't appeared before.
+    //  - Old ones are those which are no longer nearby.
+    //  - The remainder (intersection) are not reported.
+    const newNearbyResults: NearbyResult[] = [...uniqueNearbyResults].filter(a => !this.nearbyResults.has(a));
+    const oldNearbyresults: NearbyResult[] = [...this.nearbyResults].filter(a => !uniqueNearbyResults.has(a));
 
     const ret: NearbyResultDelta = {
-      found: [],
-      lost: []
+      found: [...newNearbyResults],
+      lost: [...oldNearbyresults]
     };
 
-    // 3. Compute
-    for (const { target, artifact } of newNearbyResults) {
-      const content = artifact.arContent;
-      ret.found.push({ target, content, artifact });
-    }
-
-    for (const { target, artifact } of oldNearbyresults) {
-      const content = artifact.arContent;
-      ret.lost.push({ target, content, artifact });
-    }
-
-    // 4. Update current set of nearbyResults.
-    this.nearbyResults = pendingNearbyResults;
+    // Update current set of nearbyResults.
+    this.nearbyResults = uniqueNearbyResults;
 
     return ret;
   }

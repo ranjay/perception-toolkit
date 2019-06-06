@@ -17,8 +17,16 @@
 
 import { DetectableImage, DetectedImage } from '../../../defs/detected-image.js';
 import { Marker } from '../../../defs/marker.js';
-import { NearbyResult } from '../artifact-dealer.js';
-import { GeoCoordinates } from '../schema/core-schema-org.js'
+import { GeoCoordinates } from '../schema/core-schema-org.js';
+import { ARArtifact, ARTargetTypes } from '../schema/extension-ar-artifacts.js';
+
+/*
+ * NearbyResult combines for an ARArtifact result, and the specific ARTargetType that was used to trigger it.
+ */
+export interface NearbyResult {
+  target?: ARTargetTypes;
+  artifact: ARArtifact;
+}
 
 export interface ArtifactStore {
   getDetectableImages(geo: GeoCoordinates): Promise<DetectableImage[]>;
