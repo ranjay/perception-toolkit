@@ -54,10 +54,10 @@
         },
         "arContent": {
           "@type": "WebPage",
-          "url": "./product1.html",
+          "url": "http://localhost:8080/demo/custom-artifact-store/products/product1.html",
           "name": "Product 1",
           "description": "This is a product with a barcode",
-          "image": ""
+          "image": "http://localhost:8080/demo/custom-artifact-store/products/product1.png"
         }
       },
       {
@@ -69,10 +69,10 @@
         },
         "arContent": {
           "@type": "WebPage",
-          "url": "./product2.html",
+          "url": "http://localhost:8080/demo/custom-artifact-store/products/product2.html",
           "name": "Product 2",
           "description": "This is a product with a barcode",
-          "image": ""
+          "image": "http://localhost:8080/demo/custom-artifact-store/products/product2.png"
         }
       },
       {
@@ -84,13 +84,14 @@
         },
         "arContent": {
           "@type": "WebPage",
-          "url": "./product3.html",
+          "url": "http://localhost:8080/demo/custom-artifact-store/products/product3.html",
           "name": "Product 3",
           "description": "This is a product with a barcode",
-          "image": ""
+          "image": "http://localhost:8080/demo/custom-artifact-store/products/product3.png"
         }
       }
     ];
+
     class CustomArtifactStore {
       async getDetectableImages() {
         return [];
@@ -100,7 +101,7 @@
         for (const marker of nearbyMarkers) {
           for (const artifact of Artifacts) {
             if (marker.value === artifact.arTarget.text) {
-              return ret.push({
+              ret.push({
                 target: artifact.arTarget,
                 artifact
               });
