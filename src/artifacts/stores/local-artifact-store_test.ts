@@ -40,17 +40,17 @@ describe('LocalArtifactStore', () => {
     });
   });
 
-  it('accepts images', () => {
+  it('accepts images', async () => {
     const image: ARImageTarget = { '@type': 'ARImageTarget', 'name': 'ID1', 'image': 'Fake URL' };
     const artifact: ARArtifact = {
       arTarget: image,
       arContent: 'Fake URL'
     };
-    assert.doesNotThrow(() => {
+    assert.doesNotThrow(async () => {
       const totalAdded = localArtifactStore.addArtifact(artifact);
       assert.equal(totalAdded, 1);
 
-      const detectableImages = localArtifactStore.getDetectableImages();
+      const detectableImages = await localArtifactStore.getDetectableImages();
       assert.isArray(detectableImages);
       assert.lengthOf(detectableImages, 1);
     });
@@ -105,18 +105,19 @@ describe('LocalArtifactStore', () => {
       });
     });
 
-    it('finds barcodes', () => {
-      const results = localArtifactStore.findRelevantArtifacts([{ type: 'qrcode', value: 'Barcode Value' }], {}, []);
+    it('finds barcodes', async () => {
+      const results = await localArtifactStore.findRelevantArtifacts(
+        [{ type: 'qrcode', value: 'Barcode Value' }], {}, []);
       assert.lengthOf(results, 1);
     });
 
-    it('finds images', () => {
-      const results = localArtifactStore.findRelevantArtifacts([], {}, [ { id: 'ID1' } ]);
+    it('finds images', async () => {
+      const results = await localArtifactStore.findRelevantArtifacts([], {}, [ { id: 'ID1' } ]);
       assert.lengthOf(results, 1);
     });
 
-    it('finds multiple', () => {
-      const results = localArtifactStore.findRelevantArtifacts(
+    it('finds multiple', async () => {
+      const results = await localArtifactStore.findRelevantArtifacts(
         [{ type: 'qrcode', value: 'Barcode Value' }], {}, [{ id: 'ID1' }]);
       assert.lengthOf(results, 2);
     });

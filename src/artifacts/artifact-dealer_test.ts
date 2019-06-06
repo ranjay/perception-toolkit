@@ -164,4 +164,44 @@ describe('ArtifactDealer', () => {
       assert.isEmpty(result.lost);
     });
   });
+
+  describe('Multiple Stores', () => {
+    it('supports adding multiple stores', async () => {
+      const store1 = new LocalArtifactStore();
+      const store2 = new LocalArtifactStore();
+      artDealer.addArtifactStore(store1);
+      artDealer.addArtifactStore(store2);
+
+      store1.addArtifact({
+        arTarget: { '@type': 'Barcode', 'text': 'Barcode1' },
+        arContent: 'Fake URL'
+      });
+      store2.addArtifact({
+        arTarget: { '@type': 'Barcode', 'text': 'Barcode2' },
+        arContent: 'Fake URL'
+      });
+
+      const result1 = await artDealer.markerFound({
+        type: 'qrcode',
+        value: 'Barcode1'
+      });
+      assert.isArray(result1.found);
+      assert.lengthOf(result1.found, 1);
+      assert.equal((result1.found[0].target as Barcode).text, 'Barcode1');
+
+      assert.isArray(result1.lost);
+      assert.isEmpty(result1.lost);
+
+      const result2 = await artDealer.markerFound({
+        type: 'qrcode',
+        value: 'Barcode2'
+      });
+      assert.isArray(result2.found);
+      assert.lengthOf(result2.found, 1);
+      assert.equal((result2.found[0].target as Barcode).text, 'Barcode2');
+
+      assert.isArray(result2.lost);
+      assert.isEmpty(result2.lost);
+    });
+  });
 });
