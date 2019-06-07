@@ -1,6 +1,6 @@
 # Simple Config Demo
 
-This demo showcases how to load multiple ARArtifact definitoons into the Perception Toolkit, all at once.
+This demo showcases how to load multiple ARArtifact definitons into the Perception Toolkit, all at once.
 
 By default, the Perception Toolkit will load ARArtifacts via JSON-LD markup from pages on your site, [configured via `artifactSources`](../simple).
 

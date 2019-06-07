@@ -92,14 +92,29 @@
       }
     ];
 
+    /*
+     * This class is used to customize how Perception Toolkit maps in-camera targets to content.
+     *
+     * As an alternative to providing all your ARArtifact markup to the toolkit on startup,
+     * and have it managed automatically, you can provide only the ARArtifact markup needed
+     * in response to new targets found in the camera feed.
+     */
     class CustomArtifactStore {
-      async getDetectableImages() {
-        return [];
-      }
+      /*
+       * `findRelevantArtifacts` is called occasionally by Perception Toolkit (e.g. when targets
+       * change on camera feed).
+       * 
+       * Inputs/Outputs are defined in [the interface](../../src/artifacts/stores/artifact-store.ts).
+       * 
+       * This specific example only checks for `nearbyMarkers` (e.g. barcodes/qrcodes), and will
+       * return results if it matches one of the three defined above (`Artifacts` global).
+       * 
+       */
       async findRelevantArtifacts(nearbyMarkers, geo, detectedImages) {
         const ret = [];
         for (const marker of nearbyMarkers) {
           for (const artifact of Artifacts) {
+            // If this nearby markers' text matches one of our expected targets, return the artifact.
             if (marker.value === artifact.arTarget.text) {
               ret.push({
                 target: artifact.arTarget,
