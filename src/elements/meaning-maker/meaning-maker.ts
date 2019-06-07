@@ -89,7 +89,7 @@ export class MeaningMaker {
     }
 
     if (!shouldFetchArtifactsFrom(url)) {
-      return;
+      return [];
     }
 
     return this.loadArtifactsFromUrl(url);

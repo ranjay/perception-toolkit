@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 
+const debug = false;
+
 module.exports = function(config) {
   const options = {
     basePath: "",
@@ -23,6 +25,16 @@ module.exports = function(config) {
       'node_modules/@webcomponents/webcomponentsjs/custom-elements-es5-adapter.js',
       {
         pattern: 'lib/polyfills/**/*.js',
+        included: false,
+        served: true,
+      },
+      {
+        pattern: 'lib/planar/**/*.js',
+        included: false,
+        served: true,
+      },
+      {
+        pattern: 'test-assets/**/*.*',
         included: false,
         served: true,
       },
@@ -74,7 +86,7 @@ module.exports = function(config) {
 
     detectBrowsers: {
       postDetection(availableBrowsers) {
-        const rapidTestingMode = true;
+        const rapidTestingMode = debug;
 
         const browsers = ["ChromeHeadless"];
 
@@ -105,7 +117,7 @@ module.exports = function(config) {
       'application/wasm': ['wasm']
     },
 
-    singleRun: true
+    singleRun: !debug
   };
 
   config.set(options);
