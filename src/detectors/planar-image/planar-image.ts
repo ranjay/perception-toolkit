@@ -29,6 +29,7 @@ class Detector {
     this.isReadyInternal = new Promise((resolve) => {
       this.worker = new Worker(`${root}/lib/planar/planar-image_worker.js`);
       this.worker.onmessage = async (e) => {
+        /* istanbul ignore if */
         if (e.data === 'ready') {
           resolve();
         }
@@ -54,6 +55,7 @@ class Detector {
       const startTime = performance.now();
       this.worker.postMessage({ type: 'process', data });
       this.worker.onmessage = (e) => {
+        /* istanbul ignore if */
         if (e.data === null) {
           return [];
         }
@@ -63,6 +65,7 @@ class Detector {
         // Remap to actual target values and filter out empties.
         const ids = matches.map((id) => {
           const target = this.targets.get(id);
+          /* istanbul ignore if */
           if (!target) {
             return { value: null };
           }
@@ -88,29 +91,36 @@ class Detector {
     }
   }
 
-  addTarget(data: Uint8Array, image: DetectableImage): Promise<void> {
+  addTarget(data: Uint8Array, image: DetectableImage): Promise<number> {
     return new Promise((resolve) => {
       this.worker.postMessage({ type: 'add', data });
       this.worker.onmessage = (e) => {
         this.targets.set(e.data as number, image);
         log(`Target stored: ${image.id}, number ${e.data}`, DEBUG_LEVEL.VERBOSE);
+        resolve(e.data);
+      };
+    });
+  }
+
+  removeTarget(data: number): Promise<void> {
+    return new Promise((resolve) => {
+      this.worker.postMessage({ type: 'remove', data });
+      this.worker.onmessage = (e) => {
+        this.targets.delete(e.data as number);
+        log(`Target removed: number ${e.data}`, DEBUG_LEVEL.VERBOSE);
         resolve();
       };
     });
   }
 
-  removeTarget(id: number): Promise<void> {
-    return new Promise((resolve) => {
-      this.worker.postMessage({ type: 'remove', id });
-      this.worker.onmessage = (e) => {
-        resolve();
-      };
-    });
+  clear() {
+    this.targets.clear();
   }
 }
 
 let detector: Detector;
 export async function detectPlanarImages(data: ImageData, {root = ''} = {}) {
+  /* istanbul ignore if */
   if (!detector) {
     detector = new Detector(root);
   }
@@ -121,7 +131,8 @@ export async function detectPlanarImages(data: ImageData, {root = ''} = {}) {
 
 export async function addDetectionTarget(data: Uint8Array,
                                          image: DetectableImage,
-                                         {root = ''} = {}): Promise<void> {
+                                         {root = ''} = {}): Promise<number> {
+  /* istanbul ignore if */
   if (!detector) {
     detector = new Detector(root);
   }
@@ -132,6 +143,7 @@ export async function addDetectionTarget(data: Uint8Array,
 
 export async function removeDetectionTarget(id: number,
                                             {root = ''} = {}): Promise<void> {
+  /* istanbul ignore if */
   if (!detector) {
     detector = new Detector(root);
   }
@@ -142,10 +154,21 @@ export async function removeDetectionTarget(id: number,
 
 export async function getTarget(id: string,
                                 {root = ''} = {}) {
+  /* istanbul ignore if */
   if (!detector) {
     detector = new Detector(root);
   }
 
   await detector.isReady;
   return detector.getTarget(id);
+}
+
+export async function reset({root = ''} = {}) {
+  /* istanbul ignore if */
+  if (!detector) {
+    detector = new Detector(root);
+  }
+
+  await detector.isReady;
+  return detector.clear();
 }

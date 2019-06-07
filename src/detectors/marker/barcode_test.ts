@@ -33,7 +33,7 @@ describe('BarcodeDetector', () => {
       const instance = createStubInstance(BarcodeDetectorMock);
 
       if (throws) {
-        instance.detect.throws(new Error('Detection failed'));
+        instance.detect.throws(new Error('Mock error'));
       } else {
         instance.detect.returns(Promise.resolve([{rawValue: 'foo', format: 'qr_code'}]));
       }
