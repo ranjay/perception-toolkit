@@ -116,7 +116,7 @@ describe('LocalArtifactStore', () => {
       assert.lengthOf(results, 1);
     });
 
-    it('finds multiple', async () => {
+    it('can find both barcodes and images at once', async () => {
       const results = await localArtifactStore.findRelevantArtifacts(
         [{ type: 'qrcode', value: 'Barcode Value' }], {}, [{ id: 'ID1' }]);
       assert.lengthOf(results, 2);

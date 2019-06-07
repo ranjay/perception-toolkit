@@ -101,7 +101,7 @@ export class MeaningMaker {
    * It is up to the caller to select the correct media encoding.
    */
   async getDetectableImages(): Promise<DetectableImage[]> {
-    return this.artstore.getDetectableImages();
+    return this.artdealer.getDetectableImages();
   }
 
   /*

@@ -29,8 +29,8 @@ export interface NearbyResult {
 }
 
 export interface ArtifactStore {
-  getDetectableImages(): Promise<DetectableImage[]>;
-  findRelevantArtifacts(
+  getDetectableImages?(): Promise<DetectableImage[]>;
+  findRelevantArtifacts?(
       nearbyMarkers: Marker[],
       geo: GeoCoordinates,
       detectedImages: DetectedImage[]

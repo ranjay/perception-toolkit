@@ -15,12 +15,11 @@
  * limitations under the License.
  */
 
-import { DetectedImage } from '../../defs/detected-image.js';
+import { DetectableImage, DetectedImage } from '../../defs/detected-image.js';
 import { Marker } from '../../defs/marker.js';
 import { flat } from '../utils/flat.js';
 import { generateMarkerId } from '../utils/generate-marker-id.js';
 import { GeoCoordinates } from './schema/core-schema-org.js';
-import { ARArtifact, ARContentTypes, ARTargetTypes } from './schema/extension-ar-artifacts.js';
 import { ArtifactStore, NearbyResult } from './stores/artifact-store.js';
 
 export { NearbyResult };
@@ -39,6 +38,16 @@ export class ArtifactDealer {
   async addArtifactStore(artstore: ArtifactStore): Promise<NearbyResultDelta> {
     this.artstores.push(artstore);
     return this.generateDiffs();
+  }
+
+  async getDetectableImages(): Promise<DetectableImage[]> {
+    const allStoreResults = await Promise.all(this.artstores.map((artstore) => {
+      if (!artstore.getDetectableImages) {
+        return [];
+      }
+      return artstore.getDetectableImages();
+    }));
+    return flat(allStoreResults);
   }
 
   async updateGeolocation(coords: GeoCoordinates): Promise<NearbyResultDelta> {
@@ -69,6 +78,9 @@ export class ArtifactDealer {
   private async generateDiffs(): Promise<NearbyResultDelta> {
     // Using current context (geo, markers), ask artstores to compute relevant artifacts
     const allStoreResults = await Promise.all(this.artstores.map((artstore) => {
+      if (!artstore.findRelevantArtifacts) {
+        return [];
+      }
       return artstore.findRelevantArtifacts(
         Array.from(this.nearbyMarkers.values()),
         this.currentGeolocation,
