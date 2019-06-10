@@ -17,6 +17,7 @@
 
 import { ActionButton, Card } from '../src/elements/index.js';
 import { DEBUG_LEVEL } from '../src/utils/logger.js';
+import { ArtifactStore } from '../src/artifacts/stores/artifact-store.js';
 
 /**
  * The configuration for the Perception Toolkit. This is done by putting a
@@ -206,6 +207,11 @@ export interface PerceptionToolkitConfig {
    * ```
    */
   artifactSources?: string[];
+
+  /**
+   * Any extra artifact stores.
+   */
+  artifactStores?: ArtifactStore[];
 }
 
 /**

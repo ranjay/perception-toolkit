@@ -65,14 +65,15 @@ export class LocalArtifactStore implements ArtifactStore {
     return totalAdded;
   }
 
-  findRelevantArtifacts(nearbyMarkers: Marker[], geo: GeoCoordinates, detectedImages: DetectedImage[]): NearbyResult[] {
+  async findRelevantArtifacts(nearbyMarkers: Marker[], geo: GeoCoordinates, detectedImages: DetectedImage[]
+      ): Promise<NearbyResult[]> {
     return [
       ...this.markerStore.findRelevantArtifacts(nearbyMarkers),
       ...this.imageStore.findRelevantArtifacts(detectedImages),
     ];
   }
 
-  getDetectableImages(): DetectableImage[] {
+  async getDetectableImages(): Promise<DetectableImage[]> {
     return this.imageStore.getDetectableImages();
   }
 }

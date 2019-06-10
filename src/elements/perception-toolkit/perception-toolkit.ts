@@ -25,6 +25,7 @@ import {
   PerceptionToolkitFunctions,
 } from '../../../perception-toolkit/defs.js';
 import { NearbyResult, NearbyResultDelta } from '../../artifacts/artifact-dealer.js';
+import { ArtifactStore } from '../../artifacts/stores/artifact-store.js';
 import { detectBarcodes } from '../../detectors/marker/barcode.js';
 import { addDetectionTarget, detectPlanarImages, getTarget } from '../../detectors/planar-image/planar-image.js';
 import { cameraAccessDenied, captureClosed, captureFrame, markerDetect, perceivedResults } from '../../events.js';
@@ -52,6 +53,7 @@ window.PerceptionToolkit = window.PerceptionToolkit || {
 const {
   acknowledgeUnknownItems = true,
   artifactSources = [],
+  artifactStores = [],
   cardContainer,
   cardUrlLabel = 'View Details',
   cardMainEntityLabel = 'Launch',
@@ -127,6 +129,7 @@ export class PerceptionToolkit extends HTMLElement {
 
   async start() {
     await this.meaningMaker.init();
+    await this.addArtifactStores();
     await this.loadArtifactSources();
     await this.onboardingComplete();
     await this.beginDetection();
@@ -241,6 +244,20 @@ export class PerceptionToolkit extends HTMLElement {
           this.detectorsToUse.image = true;
           break;
       }
+    }
+  }
+
+  private async addArtifactStores() {
+    if (!artifactStores) {
+      return;
+    }
+    let stores: ArtifactStore | ArtifactStore[] = artifactStores;
+    if (!Array.isArray(stores)) {
+      stores = [artifactStores as unknown as ArtifactStore];
+    }
+
+    for (const store of stores) {
+      this.meaningMaker.addArtifactStore(store);
     }
   }
 
@@ -565,13 +582,13 @@ export class PerceptionToolkit extends HTMLElement {
     }
 
     // Create a card for every found marker.
-    for (const { content } of contentDiff.found) {
+    for (const { artifact: { arContent } } of contentDiff.found) {
       // Prevent multiple cards from showing.
       if (cardContainer.childNodes.length >= maxCards) {
         continue;
       }
 
-      const cardContent = content as CardData;
+      const cardContent = arContent as CardData;
       const card = new Card();
       card.src = cardContent;
       cardContainer.appendChild(card);
