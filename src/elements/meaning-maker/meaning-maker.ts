@@ -17,14 +17,22 @@
 
 import { DetectableImage, DetectedImage } from '../../../defs/detected-image.js';
 import { Marker } from '../../../defs/marker.js';
-import { ArtifactDealer, NearbyResultDelta } from '../../../src/artifacts/artifact-dealer.js';
+import { ArtifactDealer, PerceptionResultDelta } from '../../../src/artifacts/artifact-dealer.js';
 import { ArtifactLoader } from '../../artifacts/artifact-loader.js';
 import { GeoCoordinates } from '../../artifacts/schema/core-schema-org.js';
 import { ARArtifact } from '../../artifacts/schema/extension-ar-artifacts.js';
+import { ArtifactStore, PerceptionContext } from '../../artifacts/stores/artifact-store.js';
 import { LocalArtifactStore } from '../../artifacts/stores/local-artifact-store.js';
-import { ArtifactStore } from '../../artifacts/stores/artifact-store.js';
 
-type ShouldFetchArtifactsFromCallback = ((url: URL) => boolean) | string[];
+export type ShouldFetchArtifactsFromCallback = ((url: URL) => boolean) | string[];
+
+export interface PerceiveRequest extends PerceptionContext {
+  shouldFetchArtifactsFrom?: ShouldFetchArtifactsFromCallback;
+}
+
+export interface PerceiveResponse extends PerceptionResultDelta {
+  detectableImages: DetectableImage[];
+}
 
 /**
  * @hidden
@@ -74,10 +82,48 @@ export class MeaningMaker {
     return [];
   }
 
+  /*
+   * TODO:
+   * Returns the full set of potential images which are worthy of detection at this moment.
+   * Each DetectableImage has one unique id, and also a list of potential Media which encodes it.
+   * It is up to the caller to select the correct media encoding.
+   */
+  async perceive(request: PerceiveRequest): Promise<PerceiveResponse>  {
+    for (const marker of request.markers) {
+      this.checkMarkerIsDynamic(marker, request.shouldFetchArtifactsFrom);
+    }
+
+    const ret: PerceiveResponse = {
+      ...await this.artdealer.perceive(request),
+      detectableImages: await this.artdealer.getDetectableImages()
+    };
+    return ret;
+  }
+
+  /*
+   * If this marker is a URL, try loading artifacts from that URL
+   *
+   * `shouldFetchArtifactsFrom` is called if marker is a URL value.  If it returns `true`, MeaningMaker will index that
+   * URL and extract Artifacts, if it has not already done so.
+   *
+   * returns `NearbyResultDelta` which can be used to update UI.
+   */
+  private async checkMarkerIsDynamic(marker: Marker, shouldFetchArtifactsFrom?: ShouldFetchArtifactsFromCallback) {
+    try {
+      // Attempt to convert markerValue to URL.  This will throw if markerValue isn't a valid URL.
+      // Do not supply a base url argument, since we do not want to support relative URLs,
+      // and because that would turn lots of normal string values into valid relative URLs.
+      const url = new URL(marker.value);
+      await this.loadArtifactsFromSupportedUrl(url, shouldFetchArtifactsFrom);
+    } catch (_) {
+      // Do nothing if this isn't a valid URL
+    }
+  }
+
   /**
    * Load artifact content from url on same origin, usually discovered from environment.
    */
-  async loadArtifactsFromSupportedUrl(url: URL,
+  private async loadArtifactsFromSupportedUrl(url: URL,
                                       shouldFetchArtifactsFrom?: ShouldFetchArtifactsFromCallback) {
     // If there's no callback provided, match to current origin.
     if (!shouldFetchArtifactsFrom) {
@@ -93,74 +139,6 @@ export class MeaningMaker {
     }
 
     return this.loadArtifactsFromUrl(url);
-  }
-
-  /*
-   * Returns the full set of potential images which are worthy of detection at this moment.
-   * Each DetectableImage has one unique id, and also a list of potential Media which encodes it.
-   * It is up to the caller to select the correct media encoding.
-   */
-  async getDetectableImages(): Promise<DetectableImage[]> {
-    return this.artdealer.getDetectableImages();
-  }
-
-  /*
-   * Inform MeaningMaker that `marker` has been detected in camera feed.
-   * `shouldFetchArtifactsFrom` is called if marker is a URL value.  If it returns `true`, MeaningMaker will index that
-   * URL and extract Artifacts, if it has not already done so.
-   *
-   * returns `NearbyResultDelta` which can be used to update UI.
-   */
-  async markerFound(marker: Marker, shouldFetchArtifactsFrom?: ShouldFetchArtifactsFromCallback):
-      Promise<NearbyResultDelta> {
-    // If this marker is a URL, try loading artifacts from that URL
-    try {
-      // Attempt to convert markerValue to URL.  This will throw if markerValue isn't a valid URL.
-      // Do not supply a base url argument, since we do not want to support relative URLs,
-      // and because that would turn lots of normal string values into valid relative URLs.
-      const url = new URL(marker.value);
-      await this.loadArtifactsFromSupportedUrl(url, shouldFetchArtifactsFrom);
-    } catch (_) {
-      // Do nothing if this isn't a valid URL
-    }
-
-    return this.artdealer.markerFound(marker);
-  }
-
-  /*
-   * Inform MeaningMaker that `marker` has been lost from camera feed.
-   *
-   * returns `NearbyResultDelta` which can be used to update UI.
-   */
-  async markerLost(marker: Marker): Promise<NearbyResultDelta> {
-    return this.artdealer.markerLost(marker);
-  }
-
-  /*
-   * Inform MeaningMaker that geo `coords` have changed.
-   *
-   * returns `NearbyResultDelta` which can be used to update UI.
-   */
-  async updateGeolocation(geo: GeoCoordinates): Promise<NearbyResultDelta> {
-    return this.artdealer.updateGeolocation(geo);
-  }
-
-  /*
-   * Inform MeaningMaker that `detectedImage` has been found in camera feed.
-   *
-   * returns `NearbyResultDelta` which can be used to update UI.
-   */
-  async imageFound(detectedImage: DetectedImage) {
-    return this.artdealer.imageFound(detectedImage);
-  }
-
-  /*
-   * Inform MeaningMaker that `detectedImage` has been lost from camera feed.
-   *
-   * returns `NearbyResultDelta` which can be used to update UI.
-   */
-  async imageLost(detectedImage: DetectedImage) {
-    return this.artdealer.imageLost(detectedImage);
   }
 
   private saveArtifacts(artifacts: ARArtifact[]) {

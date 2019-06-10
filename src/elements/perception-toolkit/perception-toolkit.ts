@@ -24,8 +24,7 @@ import {
   PerceptionToolkitEvents,
   PerceptionToolkitFunctions,
 } from '../../../perception-toolkit/defs.js';
-import { NearbyResult, NearbyResultDelta } from '../../artifacts/artifact-dealer.js';
-import { ArtifactStore } from '../../artifacts/stores/artifact-store.js';
+import { ArtifactStore, PerceptionResult } from '../../artifacts/stores/artifact-store.js';
 import { detectBarcodes } from '../../detectors/marker/barcode.js';
 import { addDetectionTarget, detectPlanarImages, getTarget } from '../../detectors/planar-image/planar-image.js';
 import { cameraAccessDenied, captureClosed, captureFrame, markerDetect, perceivedResults } from '../../events.js';
@@ -42,6 +41,7 @@ import { MeaningMaker } from '../meaning-maker/meaning-maker.js';
 import { OnboardingCard } from '../onboarding-card/onboarding-card.js';
 import { hideOverlay, showOverlay } from '../overlay/overlay.js';
 import { StreamCapture } from '../stream-capture/stream-capture.js';
+import { PerceptionResultDelta } from '../../artifacts/artifact-dealer.js';
 
 window.PerceptionToolkit = window.PerceptionToolkit || {
   Elements: {} as PerceptionToolkitElements,
@@ -173,38 +173,6 @@ export class PerceptionToolkit extends HTMLElement {
     this.removeEventListener(markerDetect, this.onMarkerFoundBound);
   }
 
-  private async purgeOldMarkers() {
-    const now = self.performance.now();
-    const removals = [];
-    for (const [marker, timeLastSeen] of this.detectedTargets.entries()) {
-      // Any targets seen in the last second should remain.
-      if (now - timeLastSeen < 1000) {
-        continue;
-      }
-
-      // All others need removing.
-      switch (marker.type) {
-        case 'ARImageTarget':
-          const image = await getTarget(marker.value);
-          if (!image) {
-            break;
-          }
-
-          removals.push(this.meaningMaker.imageLost(image));
-          break;
-
-        default:
-          removals.push(this.meaningMaker.markerLost(marker));
-          break;
-      }
-
-      this.detectedTargets.delete(marker);
-    }
-
-    // Wait for all dealer removals to conclude.
-    await Promise.all(removals);
-  }
-
   private initializeDetectors() {
     const label = 'Perception Toolkit';
     const attemptData = new ImageData(640, 480);
@@ -317,7 +285,14 @@ export class PerceptionToolkit extends HTMLElement {
   }
 
   private async loadImageTargets() {
-    const detectableImages = await this.meaningMaker.getDetectableImages();
+    // TODO: just do this in response to frame result
+    // Need to implement diffing so we can evolve image set over time?
+    const detectableImages = (await this.meaningMaker.perceive({
+      markers: [],
+      geo: {},
+      images: []
+    })).detectableImages;
+
     if (detectableImages.length === 0) {
       return;
     }
@@ -473,6 +448,30 @@ export class PerceptionToolkit extends HTMLElement {
     }
 
     const detectorOutcomes = await Promise.all(detectionTasks);
+
+    /*
+    const { shouldLoadArtifactsFrom } = window.PerceptionToolkit.config;
+
+    const image = await getTarget(value);
+    if (!image) {
+      break;
+    }
+
+    const imageDiff = await this.meaningMaker.imageFound(image);
+
+    const contentDiff = { lost, found };
+    const markerChangeEvt = fire(perceivedResults, this, contentDiff);
+
+    // If the developer prevents default on the marker changes event then don't
+    // handle the UI updates; they're doing it themselves.
+    if (markerChangeEvt.defaultPrevented) {
+      return;
+    }
+
+    vibrate(200);
+    this.updateContentDisplay(contentDiff, marker);
+    */
+
     const targets = flat(detectorOutcomes, 1) as Marker[];
     for (const target of targets) {
       const targetAlreadyDetected = this.detectedTargets.has(target);
@@ -491,52 +490,15 @@ export class PerceptionToolkit extends HTMLElement {
 
     // Unlock!
     this.isProcessingFrame = false;
-    this.purgeOldMarkers();
   }
 
   private async onMarkerFound(evt: Event) {
+    // TODO: may be able to move this code into onCaptureFrame and remove this event.
     clearTimeout(this.hintTimeoutId);
     hideOverlay();
-
-    const marker = (evt as CustomEvent<Marker>).detail;
-    const { value, type } = marker;
-    const { shouldLoadArtifactsFrom } = window.PerceptionToolkit.config;
-
-    const lost: NearbyResult[] = [];
-    const found: NearbyResult[] = [];
-    switch (type) {
-      case 'ARImageTarget':
-        const image = await getTarget(value);
-        if (!image) {
-          break;
-        }
-
-        const imageDiff = await this.meaningMaker.imageFound(image);
-        lost.push(...imageDiff.lost);
-        found.push(...imageDiff.found);
-        break;
-
-      default:
-        const markerDiff =
-            await this.meaningMaker.markerFound(marker, shouldLoadArtifactsFrom);
-        lost.push(...markerDiff.lost);
-        found.push(...markerDiff.found);
-        break;
-    }
-    const contentDiff = { lost, found };
-    const markerChangeEvt = fire(perceivedResults, this, contentDiff);
-
-    // If the developer prevents default on the marker changes event then don't
-    // handle the UI updates; they're doing it themselves.
-    if (markerChangeEvt.defaultPrevented) {
-      return;
-    }
-
-    vibrate(200);
-    this.updateContentDisplay(contentDiff, marker);
   }
 
-  private updateContentDisplay(contentDiff: NearbyResultDelta, marker: Marker) {
+  private updateContentDisplay(contentDiff: PerceptionResultDelta, marker: Marker) {
     if (!cardContainer) {
       log(`No card container provided, but event's default was not prevented`,
           DEBUG_LEVEL.ERROR);
@@ -548,7 +510,7 @@ export class PerceptionToolkit extends HTMLElement {
     this.createCardsForFoundItems(contentDiff);
   }
 
-  private handleUnknownItems(contentDiff: NearbyResultDelta, marker: Marker) {
+  private handleUnknownItems(contentDiff: PerceptionResultDelta, marker: Marker) {
     if (!cardContainer ||  // No card container.
         !acknowledgeUnknownItems ||  // The config says to ignore unknowns.
         contentDiff.found.length > 0 ||  // There are found items.
@@ -565,7 +527,7 @@ export class PerceptionToolkit extends HTMLElement {
   }
 
   // Remove 'unknown item' cards if there is now a found item.
-  private removeUnknownItemsIfFound(contentDiff: NearbyResultDelta) {
+  private removeUnknownItemsIfFound(contentDiff: PerceptionResultDelta) {
     if (!cardContainer || contentDiff.found.length === 0) {
       return;
     }
@@ -576,7 +538,7 @@ export class PerceptionToolkit extends HTMLElement {
     }
   }
 
-  private createCardsForFoundItems(contentDiff: NearbyResultDelta) {
+  private createCardsForFoundItems(contentDiff: PerceptionResultDelta) {
     if (!cardContainer) {
       return;
     }

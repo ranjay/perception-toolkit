@@ -21,18 +21,23 @@ import { GeoCoordinates } from '../schema/core-schema-org.js';
 import { ARArtifact, ARTargetTypes } from '../schema/extension-ar-artifacts.js';
 
 /*
- * NearbyResult combines for an ARArtifact result, and the specific ARTargetType that was used to trigger it.
+ * PerceptionContext is usually created per-captured video frame, and encodes the most up to date context.
  */
-export interface NearbyResult {
-  target?: ARTargetTypes;
+export interface PerceptionContext {
+  markers: Marker[];
+  geo: GeoCoordinates;
+  images: DetectedImage[];
+}
+
+/*
+ * PerceptionResult combines an ARArtifact result, and the specific ARTargetType that was used to trigger it.
+ */
+export interface PerceptionResult {
   artifact: ARArtifact;
+  trigger?: ARTargetTypes;
 }
 
 export interface ArtifactStore {
   getDetectableImages?(): Promise<DetectableImage[]>;
-  findRelevantArtifacts?(
-      nearbyMarkers: Marker[],
-      geo: GeoCoordinates,
-      detectedImages: DetectedImage[]
-    ): Promise<NearbyResult[]>;
+  findRelevantArtifacts?(context: PerceptionContext): Promise<PerceptionResult[]>;
 }

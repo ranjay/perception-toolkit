@@ -16,11 +16,9 @@
  */
 
 import { DetectableImage, DetectedImage } from '../../../defs/detected-image.js';
-import { Marker } from '../../../defs/marker.js';
-import { NearbyResult } from '../artifact-dealer.js';
-import { Barcode, GeoCoordinates, Thing, typeIsThing } from '../schema/core-schema-org.js';
-import { ARArtifact, ARImageTarget, ARTargetTypes } from '../schema/extension-ar-artifacts.js';
-import { ArtifactStore } from './artifact-store.js';
+import { typeIsThing } from '../schema/core-schema-org.js';
+import { ARArtifact, ARTargetTypes } from '../schema/extension-ar-artifacts.js';
+import { ArtifactStore, PerceptionContext, PerceptionResult } from './artifact-store.js';
 import { LocalImageStore } from './local-image-store.js';
 import { LocalMarkerStore } from './local-marker-store.js';
 
@@ -65,11 +63,10 @@ export class LocalArtifactStore implements ArtifactStore {
     return totalAdded;
   }
 
-  async findRelevantArtifacts(nearbyMarkers: Marker[], geo: GeoCoordinates, detectedImages: DetectedImage[]
-      ): Promise<NearbyResult[]> {
+  async findRelevantArtifacts?(context: PerceptionContext): Promise<PerceptionResult[]> {
     return [
-      ...this.markerStore.findRelevantArtifacts(nearbyMarkers),
-      ...this.imageStore.findRelevantArtifacts(detectedImages),
+      ...this.markerStore.findRelevantArtifacts(context.markers),
+      ...this.imageStore.findRelevantArtifacts(context.images),
     ];
   }
 
