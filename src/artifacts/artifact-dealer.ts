@@ -24,6 +24,10 @@ export interface PerceptionResultDelta {
   lost: PerceptionResult[];
 }
 
+export interface NextFrameContext {
+  detectableImages: DetectableImage[];
+}
+
 export class ArtifactDealer {
   private readonly artstores: ArtifactStore[] = [];
   private prevPerceptionResults = new Set<PerceptionResult>();
@@ -32,14 +36,14 @@ export class ArtifactDealer {
     this.artstores.push(artstore);
   }
 
-  async getDetectableImages(): Promise<DetectableImage[]> {
+  async getNextFrameContext(request: PerceptionContext): Promise<NextFrameContext> {
     const allStoreResults = await Promise.all(this.artstores.map((artstore) => {
       if (!artstore.getDetectableImages) {
         return [];
       }
       return artstore.getDetectableImages();
     }));
-    return flat(allStoreResults);
+    return { detectableImages: flat(allStoreResults) };
   }
 
   async perceive(context: PerceptionContext): Promise<PerceptionResultDelta> {

@@ -16,8 +16,7 @@
  * limitations under the License.
  */
 
-import { DetectableImage } from '../../../defs/detected-image.js';
-import { Marker } from '../../../defs/marker.js';
+import { DetectableImage, DetectedImage } from '../../../defs/detected-image.js';
 import { DEBUG_LEVEL, log } from '../../utils/logger.js';
 
 class Detector {
@@ -46,7 +45,7 @@ class Detector {
     return this.isReadyInternal;
   }
 
-  detect(data: ImageData): Promise<Marker[]> {
+  detect(data: ImageData): Promise<DetectedImage[]> {
     if (this.targets.size === 0) {
       return Promise.resolve([]);
     }
@@ -62,21 +61,11 @@ class Detector {
 
         const matches = e.data as number[];
 
-        // Remap to actual target values and filter out empties.
-        const ids = matches.map((id) => {
-          const target = this.targets.get(id);
-          /* istanbul ignore if */
-          if (!target) {
-            return { value: null };
-          }
+        // Remap to actual DetectedImage targets (and filter out empties).
+        const detectedImages = matches.map((id) => this.targets.get(id))
+            .filter(detectedImage => !!detectedImage) as DetectedImage[];
 
-          return {
-            type: 'ARImageTarget',
-            value: target.id,
-          };
-        }).filter(value => !!value.value) as Marker[];
-
-        resolve(ids);
+        resolve(detectedImages);
         log(`Time taken (ms): ${performance.now() - startTime} ` +
             `for ${data.width} * ${data.height}`, DEBUG_LEVEL.VERBOSE);
       };

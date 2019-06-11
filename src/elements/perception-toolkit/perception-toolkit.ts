@@ -24,7 +24,7 @@ import {
   PerceptionToolkitEvents,
   PerceptionToolkitFunctions,
 } from '../../../perception-toolkit/defs.js';
-import { ArtifactStore, PerceptionResult } from '../../artifacts/stores/artifact-store.js';
+import { ArtifactStore } from '../../artifacts/stores/artifact-store.js';
 import { detectBarcodes } from '../../detectors/marker/barcode.js';
 import { addDetectionTarget, detectPlanarImages, getTarget } from '../../detectors/planar-image/planar-image.js';
 import { cameraAccessDenied, captureClosed, captureFrame, markerDetect, perceivedResults } from '../../events.js';
@@ -41,7 +41,8 @@ import { MeaningMaker } from '../meaning-maker/meaning-maker.js';
 import { OnboardingCard } from '../onboarding-card/onboarding-card.js';
 import { hideOverlay, showOverlay } from '../overlay/overlay.js';
 import { StreamCapture } from '../stream-capture/stream-capture.js';
-import { PerceptionResultDelta } from '../../artifacts/artifact-dealer.js';
+import { PerceptionResultDelta, NextFrameContext } from '../../artifacts/artifact-dealer.js';
+import { DetectableImage } from '../../../defs/detected-image.js';
 
 window.PerceptionToolkit = window.PerceptionToolkit || {
   Elements: {} as PerceptionToolkitElements,
@@ -85,12 +86,11 @@ export class PerceptionToolkit extends HTMLElement {
 
   private readonly root = this.attachShadow({ mode: 'open' });
   private readonly meaningMaker = new MeaningMaker();
-  private readonly detectedTargets = new Map<{type: string, value: string}, number>();
   private readonly onVisibilityChangeBound = this.onVisibilityChange.bind(this);
   private readonly onMarkerFoundBound = this.onMarkerFound.bind(this);
   private readonly onCaptureFrameBound = this.onCaptureFrame.bind(this);
   private readonly onCloseBound = this.onClose.bind(this);
-  private readonly startupDetections: Array<Promise<Marker[]>> = [];
+  private readonly startupDetections: Array<Promise<any[]>> = [];
   private readonly detectorsToUse = {
     barcode: true,
     image: false
@@ -141,9 +141,6 @@ export class PerceptionToolkit extends HTMLElement {
     // Stop and hide the capture.
     this.capture.classList.remove('active');
     this.capture.stop();
-
-    // Clear any markers.
-    this.detectedTargets.clear();
 
     unobserveConnectivityChanges();
     hideOverlay();
@@ -273,68 +270,64 @@ export class PerceptionToolkit extends HTMLElement {
       await Promise.all(this.startupDetections);
       hideOverlay(overlayInit);
 
-      // Image targets.
-      if (this.detectorsToUse.image || detectors === 'lazy' ||
-          detectors === 'all') {
-        await this.loadImageTargets();
-      }
+      // TODO: This sets up MM initial context.  May want to change how this works.
+      const nextFrameContext = await this.meaningMaker.perceive({
+        markers: [],
+        geo: {},
+        images: []
+      });
+      await this.prepareForNextFrame(nextFrameContext);
+
       this.hideLoaderIfNeeded();
     } catch (e) {
       log(e.message, DEBUG_LEVEL.ERROR, 'Detection');
     }
   }
 
-  private async loadImageTargets() {
-    // TODO: just do this in response to frame result
-    // Need to implement diffing so we can evolve image set over time?
-    const detectableImages = (await this.meaningMaker.perceive({
-      markers: [],
-      geo: {},
-      images: []
-    })).detectableImages;
+  private async prepareForNextFrame(nextFrameContext: NextFrameContext) {
+    // Prep Image Targets
+    // TODO: DIFF detectableImages from previous frame.  Only load new ones.
+    if ((this.detectorsToUse.image || detectors === 'lazy' || detectors === 'all')
+        && nextFrameContext.detectableImages.length > 0) {
+      const overlayInit = { id: 'pt.imagetargets', small: true };
+      showOverlay('Obtaining image targets...', overlayInit);
 
-    if (detectableImages.length === 0) {
-      return;
-    }
+      // Enable detection for any targets.
+      let imageCount = 0;
+      for (const image of nextFrameContext.detectableImages) {
+        for (const media of image.media) {
+          // If the object does not match our requirements, bail.
+          if (!media['@type'] || media['@type'] !== 'MediaObject' ||
+              !media.contentUrl || !media.encodingFormat ||
+              media.encodingFormat !== 'application/octet+pd') {
+            continue;
+          }
 
-    const overlayInit = { id: 'pt.imagetargets', small: true };
-    showOverlay('Obtaining image targets...', overlayInit);
+          const url = media.contentUrl.toString();
+          log(`Loading ${url}`, DEBUG_LEVEL.VERBOSE);
 
-    // Enable detection for any targets.
-    let imageCount = 0;
-    for (const image of detectableImages) {
-      for (const media of image.media) {
-        // If the object does not match our requirements, bail.
-        if (!media['@type'] || media['@type'] !== 'MediaObject' ||
-            !media.contentUrl || !media.encodingFormat ||
-            media.encodingFormat !== 'application/octet+pd') {
-          continue;
-        }
+          // Obtain a Uint8Array for the file.
+          try {
+            const bytes = await fetch(url, { credentials: 'include' })
+                .then(r => r.arrayBuffer())
+                .then(b => new Uint8Array(b));
 
-        const url = media.contentUrl.toString();
-        log(`Loading ${url}`, DEBUG_LEVEL.VERBOSE);
-
-        // Obtain a Uint8Array for the file.
-        try {
-          const bytes = await fetch(url, { credentials: 'include' })
-              .then(r => r.arrayBuffer())
-              .then(b => new Uint8Array(b));
-
-          // Switch on detection.
-          log(`Adding detection target: ${image.id}`);
-          addDetectionTarget(bytes, image);
-          imageCount++;
-        } catch (e) {
-          log(`Unable to load ${url}`, DEBUG_LEVEL.WARNING);
+            // Switch on detection.
+            log(`Adding detection target: ${image.id}`);
+            addDetectionTarget(bytes, image);
+            imageCount++;
+          } catch (e) {
+            log(`Unable to load ${url}`, DEBUG_LEVEL.WARNING);
+          }
         }
       }
+
+      hideOverlay(overlayInit);
+      log(`${imageCount} target(s) added`, DEBUG_LEVEL.INFO);
+
+      // Declare the detector ready to use.
+      this.detectorsToUse.image = true;
     }
-
-    hideOverlay(overlayInit);
-    log(`${imageCount} target(s) added`, DEBUG_LEVEL.INFO);
-
-    // Declare the detector ready to use.
-    this.detectorsToUse.image = true;
   }
 
   private hideLoaderIfNeeded() {
@@ -438,42 +431,14 @@ export class PerceptionToolkit extends HTMLElement {
 
     // Only use detectors that we explicitly ask to run.
     // This is set in the config, under `detectors`.
-    const detectionTasks = [];
-    if (this.detectorsToUse.barcode) {
-      detectionTasks.push(detectBarcodes(imgData, { root }));
-    }
+    const [ detectedMarkers, detectedImages ]  = await Promise.all([
+      this.detectorsToUse.barcode ? detectBarcodes(imgData, { root }) : [],
+      this.detectorsToUse.image ? detectPlanarImages(imgData, { root }) : [],
+    ]);
 
-    if (this.detectorsToUse.image) {
-      detectionTasks.push(detectPlanarImages(imgData, { root }));
-    }
-
-    const detectorOutcomes = await Promise.all(detectionTasks);
-
+    // TODO: Fire marker found events.  How to show card for "unrecognized" Marker?
     /*
-    const { shouldLoadArtifactsFrom } = window.PerceptionToolkit.config;
-
-    const image = await getTarget(value);
-    if (!image) {
-      break;
-    }
-
-    const imageDiff = await this.meaningMaker.imageFound(image);
-
-    const contentDiff = { lost, found };
-    const markerChangeEvt = fire(perceivedResults, this, contentDiff);
-
-    // If the developer prevents default on the marker changes event then don't
-    // handle the UI updates; they're doing it themselves.
-    if (markerChangeEvt.defaultPrevented) {
-      return;
-    }
-
-    vibrate(200);
-    this.updateContentDisplay(contentDiff, marker);
-    */
-
-    const targets = flat(detectorOutcomes, 1) as Marker[];
-    for (const target of targets) {
+    for (const marker of markers) {
       const targetAlreadyDetected = this.detectedTargets.has(target);
 
       // Update the last time this marker was seen.
@@ -487,6 +452,25 @@ export class PerceptionToolkit extends HTMLElement {
       // Only fire the event if the marker is freshly detected.
       fire(markerDetect, this, target);
     }
+    */
+
+    const response = await this.meaningMaker.perceive({
+      markers: detectedMarkers,
+      geo: {},
+      images: detectedImages,
+      shouldLoadArtifactsFrom: window.PerceptionToolkit.config.shouldLoadArtifactsFrom
+    });
+
+    const markerChangeEvt = fire(perceivedResults, this, { found: response.found, lost: response.lost });
+
+    // If the developer prevents default on the marker changes event then don't
+    // handle the UI updates; they're doing it themselves.
+    if (markerChangeEvt.defaultPrevented) {
+      return;
+    }
+
+    vibrate(200);
+    this.updateContentDisplay(response);
 
     // Unlock!
     this.isProcessingFrame = false;
@@ -498,14 +482,13 @@ export class PerceptionToolkit extends HTMLElement {
     hideOverlay();
   }
 
-  private updateContentDisplay(contentDiff: PerceptionResultDelta, marker: Marker) {
+  private updateContentDisplay(contentDiff: PerceptionResultDelta) {
     if (!cardContainer) {
       log(`No card container provided, but event's default was not prevented`,
           DEBUG_LEVEL.ERROR);
       return;
     }
 
-    this.handleUnknownItems(contentDiff, marker);
     this.removeUnknownItemsIfFound(contentDiff);
     this.createCardsForFoundItems(contentDiff);
   }

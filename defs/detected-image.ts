@@ -17,11 +17,10 @@
 
 import { MediaObject } from '../src/artifacts/schema/core-schema-org.js';
 
-export interface DetectableImage {
-  id: string;
-  media: MediaObject[];
-}
-
 export interface DetectedImage {
   id: string;
+}
+
+export interface DetectableImage extends DetectedImage {
+  media: MediaObject[];
 }

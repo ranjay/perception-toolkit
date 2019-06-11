@@ -15,24 +15,20 @@
  * limitations under the License.
  */
 
-import { DetectableImage, DetectedImage } from '../../../defs/detected-image.js';
 import { Marker } from '../../../defs/marker.js';
-import { ArtifactDealer, PerceptionResultDelta } from '../../../src/artifacts/artifact-dealer.js';
+import { ArtifactDealer, NextFrameContext, PerceptionResultDelta } from '../../../src/artifacts/artifact-dealer.js';
 import { ArtifactLoader } from '../../artifacts/artifact-loader.js';
-import { GeoCoordinates } from '../../artifacts/schema/core-schema-org.js';
 import { ARArtifact } from '../../artifacts/schema/extension-ar-artifacts.js';
 import { ArtifactStore, PerceptionContext } from '../../artifacts/stores/artifact-store.js';
 import { LocalArtifactStore } from '../../artifacts/stores/local-artifact-store.js';
 
-export type ShouldFetchArtifactsFromCallback = ((url: URL) => boolean) | string[];
+// TODO: Move this to config manager
+export type ShouldLoadArtifactsFromCallback = ((url: URL) => boolean) | string[];
 
 export interface PerceiveRequest extends PerceptionContext {
-  shouldFetchArtifactsFrom?: ShouldFetchArtifactsFromCallback;
+  shouldLoadArtifactsFrom?: ShouldLoadArtifactsFromCallback;
 }
-
-export interface PerceiveResponse extends PerceptionResultDelta {
-  detectableImages: DetectableImage[];
-}
+export interface PerceiveResponse extends PerceptionResultDelta, NextFrameContext {}
 
 /**
  * @hidden
@@ -90,12 +86,12 @@ export class MeaningMaker {
    */
   async perceive(request: PerceiveRequest): Promise<PerceiveResponse>  {
     for (const marker of request.markers) {
-      this.checkMarkerIsDynamic(marker, request.shouldFetchArtifactsFrom);
+      this.checkMarkerIsDynamic(marker, request.shouldLoadArtifactsFrom);
     }
 
     const ret: PerceiveResponse = {
       ...await this.artdealer.perceive(request),
-      detectableImages: await this.artdealer.getDetectableImages()
+      ...await this.artdealer.getNextFrameContext(request)
     };
     return ret;
   }
@@ -103,18 +99,18 @@ export class MeaningMaker {
   /*
    * If this marker is a URL, try loading artifacts from that URL
    *
-   * `shouldFetchArtifactsFrom` is called if marker is a URL value.  If it returns `true`, MeaningMaker will index that
+   * `shouldLoadArtifactsFrom` is called if marker is a URL value.  If it returns `true`, MeaningMaker will index that
    * URL and extract Artifacts, if it has not already done so.
    *
    * returns `NearbyResultDelta` which can be used to update UI.
    */
-  private async checkMarkerIsDynamic(marker: Marker, shouldFetchArtifactsFrom?: ShouldFetchArtifactsFromCallback) {
+  private async checkMarkerIsDynamic(marker: Marker, shouldLoadArtifactsFrom?: ShouldLoadArtifactsFromCallback) {
     try {
       // Attempt to convert markerValue to URL.  This will throw if markerValue isn't a valid URL.
       // Do not supply a base url argument, since we do not want to support relative URLs,
       // and because that would turn lots of normal string values into valid relative URLs.
       const url = new URL(marker.value);
-      await this.loadArtifactsFromSupportedUrl(url, shouldFetchArtifactsFrom);
+      await this.loadArtifactsFromSupportedUrl(url, shouldLoadArtifactsFrom);
     } catch (_) {
       // Do nothing if this isn't a valid URL
     }
@@ -124,17 +120,17 @@ export class MeaningMaker {
    * Load artifact content from url on same origin, usually discovered from environment.
    */
   private async loadArtifactsFromSupportedUrl(url: URL,
-                                      shouldFetchArtifactsFrom?: ShouldFetchArtifactsFromCallback) {
+                                              shouldLoadArtifactsFrom?: ShouldLoadArtifactsFromCallback) {
     // If there's no callback provided, match to current origin.
-    if (!shouldFetchArtifactsFrom) {
-      shouldFetchArtifactsFrom = (url: URL) => url.origin === window.location.origin;
-    } else if (Array.isArray(shouldFetchArtifactsFrom)) {
+    if (!shouldLoadArtifactsFrom) {
+      shouldLoadArtifactsFrom = (url: URL) => url.origin === window.location.origin;
+    } else if (Array.isArray(shouldLoadArtifactsFrom)) {
       // If an array of strings, remap it.
-      const origins = shouldFetchArtifactsFrom;
-      shouldFetchArtifactsFrom = (url: URL) => !!origins.find(o => o === url.origin);
+      const origins = shouldLoadArtifactsFrom;
+      shouldLoadArtifactsFrom = (url: URL) => !!origins.find(o => o === url.origin);
     }
 
-    if (!shouldFetchArtifactsFrom(url)) {
+    if (!shouldLoadArtifactsFrom(url)) {
       return [];
     }
 
