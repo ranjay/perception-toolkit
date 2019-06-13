@@ -16,10 +16,10 @@
  */
 
 import { Marker } from '../../../defs/marker.js';
-import { ArtifactDealer, NextFrameContext, PerceptionResultDelta } from '../../../src/artifacts/artifact-dealer.js';
+import { ArtifactDealer, ProbableTargets } from '../../../src/artifacts/artifact-dealer.js';
 import { ArtifactLoader } from '../../artifacts/artifact-loader.js';
 import { ARArtifact } from '../../artifacts/schema/extension-ar-artifacts.js';
-import { ArtifactStore, PerceptionState } from '../../artifacts/stores/artifact-store.js';
+import { ArtifactStore, PerceptionResult, PerceptionState } from '../../artifacts/stores/artifact-store.js';
 import { LocalArtifactStore } from '../../artifacts/stores/local-artifact-store.js';
 
 // TODO: Move this to config manager
@@ -28,7 +28,10 @@ export type ShouldLoadArtifactsFromCallback = ((url: URL) => boolean) | string[]
 export interface PerceptionStateChangeRequest extends PerceptionState {
   shouldLoadArtifactsFrom?: ShouldLoadArtifactsFromCallback;
 }
-export interface PerceptionStateChangeResponse extends PerceptionResultDelta, NextFrameContext {}
+export interface PerceptionStateChangeResponse extends ProbableTargets {
+  found: PerceptionResult[];
+  lost: PerceptionResult[];
+}
 
 /**
  * @hidden
@@ -47,6 +50,8 @@ export class MeaningMaker {
   private readonly artloader = new ArtifactLoader();
   private readonly artstore = new LocalArtifactStore();
   private readonly artdealer = new ArtifactDealer();
+  private prevPerceptionResults = new Set<PerceptionResult>();
+  private artifactsForUrl = new Map<string, ARArtifact[]>();
 
   constructor() {
     this.addArtifactStore(this.artstore);
@@ -57,6 +62,7 @@ export class MeaningMaker {
    */
   async init() {
     const artifacts = await this.artloader.fromElement(document, document.URL);
+    this.artifactsForUrl.set(document.URL, artifacts);
     this.saveArtifacts(artifacts);
   }
 
@@ -68,8 +74,12 @@ export class MeaningMaker {
    * Load artifact content for initial set.
    */
   async loadArtifactsFromUrl(url: URL): Promise<ARArtifact[]> {
+    if (this.artifactsForUrl.has(url.toString())) {
+      return this.artifactsForUrl.get(url.toString()) as ARArtifact[];
+    }
     const artifacts = await this.artloader.fromUrl(url);
     this.saveArtifacts(artifacts);
+    this.artifactsForUrl.set(url.toString(), artifacts);
     return artifacts;
   }
 
@@ -77,7 +87,7 @@ export class MeaningMaker {
    * Load artifact content from url on same origin, usually discovered from environment.
    */
   async loadArtifactsFromSupportedUrl(url: URL,
-                                              shouldLoadArtifactsFrom?: ShouldLoadArtifactsFromCallback) {
+                                      shouldLoadArtifactsFrom?: ShouldLoadArtifactsFromCallback) {
     // If there's no callback provided, match to current origin.
     if (!shouldLoadArtifactsFrom) {
       shouldLoadArtifactsFrom = (url: URL) => url.origin === window.location.origin;
@@ -101,13 +111,33 @@ export class MeaningMaker {
    */
   async updatePerceptionState(request: PerceptionStateChangeRequest): Promise<PerceptionStateChangeResponse>  {
     for (const marker of request.markers || []) {
-      this.checkMarkerIsDynamic(marker, request.shouldLoadArtifactsFrom);
+      // TODO: update time for those we've seen already
+      // TODO: Promise.all these
+      await this.checkMarkerIsDynamic(marker, request.shouldLoadArtifactsFrom);
+    }
+    for (const image of request.images || []) {
+      // TODO: update time for those we've seen already
     }
 
+    const nearbyResults = await this.artdealer.getPerceptionResults(request);
+    const uniqueNearbyResults = new Set(nearbyResults);
+
+    // Diff with previous list to compute new/old artifacts.
+    //  - New ones are those which haven't appeared before.
+    //  - Old ones are those which are no longer nearby.
+    //  - The remainder (intersection) are not reported.
+    const found: PerceptionResult[] = [...uniqueNearbyResults].filter(a => !this.prevPerceptionResults.has(a));
+    const lost: PerceptionResult[] = [...this.prevPerceptionResults].filter(a => !uniqueNearbyResults.has(a));
+
+    // Update current set of nearbyResults.
+    this.prevPerceptionResults = uniqueNearbyResults;
+
     const ret: PerceptionStateChangeResponse = {
-      ...await this.artdealer.updatePerceptionState(request),
-      ...await this.artdealer.getNextFrameContext(request)
+      found,
+      lost,
+      ...await this.artdealer.predictPerceptionTargets(request)
     };
+
     return ret;
   }
 

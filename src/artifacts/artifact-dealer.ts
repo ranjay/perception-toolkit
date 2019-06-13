@@ -19,34 +19,28 @@ import { DetectableImage } from '../../defs/detected-image.js';
 import { flat } from '../utils/flat.js';
 import { ArtifactStore, PerceptionResult, PerceptionState } from './stores/artifact-store.js';
 
-export interface PerceptionResultDelta {
-  found: PerceptionResult[];
-  lost: PerceptionResult[];
-}
-
-export interface NextFrameContext {
+export interface ProbableTargets {
   detectableImages: DetectableImage[];
 }
 
 export class ArtifactDealer {
   private readonly artstores: ArtifactStore[] = [];
-  private prevPerceptionResults = new Set<PerceptionResult>();
 
   async addArtifactStore(artstore: ArtifactStore) {
     this.artstores.push(artstore);
   }
 
-  async getNextFrameContext(request: PerceptionState): Promise<NextFrameContext> {
+  async predictPerceptionTargets(request: PerceptionState): Promise<ProbableTargets> {
     const allStoreResults = await Promise.all(this.artstores.map((artstore) => {
       if (!artstore.getDetectableImages) {
         return [];
       }
-      return artstore.getDetectableImages();
+      return artstore.getDetectableImages(request);
     }));
     return { detectableImages: flat(allStoreResults) };
   }
 
-  async updatePerceptionState(context: PerceptionState): Promise<PerceptionResultDelta> {
+  async getPerceptionResults(context: PerceptionState): Promise<PerceptionResult[]> {
     // Using current context (geo, markers), ask artstores to compute relevant artifacts
     const allStoreResults = await Promise.all(this.artstores.map((artstore) => {
       if (!artstore.findRelevantArtifacts) {
@@ -54,26 +48,8 @@ export class ArtifactDealer {
       }
       return artstore.findRelevantArtifacts(context);
     }));
-    const uniqueNearbyResults: Set<PerceptionResult> = new Set(flat(allStoreResults));
 
-    // Diff with previous list to compute new/old artifacts.
-    //  - New ones are those which haven't appeared before.
-    //  - Old ones are those which are no longer nearby.
-    //  - The remainder (intersection) are not reported.
-    const newNearbyResults: PerceptionResult[] =
-        [...uniqueNearbyResults].filter(a => !this.prevPerceptionResults.has(a));
-    const oldNearbyresults: PerceptionResult[] =
-        [...this.prevPerceptionResults].filter(a => !uniqueNearbyResults.has(a));
-
-    const ret: PerceptionResultDelta = {
-      found: [...newNearbyResults],
-      lost: [...oldNearbyresults]
-    };
-
-    // Update current set of nearbyResults.
-    this.prevPerceptionResults = uniqueNearbyResults;
-
-    return ret;
+    return flat(allStoreResults);
   }
 
 }

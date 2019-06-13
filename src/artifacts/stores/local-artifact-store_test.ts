@@ -50,7 +50,7 @@ describe('LocalArtifactStore', () => {
       const totalAdded = localArtifactStore.addArtifact(artifact);
       assert.equal(totalAdded, 1);
 
-      const detectableImages = await localArtifactStore.getDetectableImages();
+      const detectableImages = await localArtifactStore.getDetectableImages({});
       assert.isArray(detectableImages);
       assert.lengthOf(detectableImages, 1);
     });

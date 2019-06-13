@@ -38,6 +38,6 @@ export interface PerceptionResult {
 }
 
 export interface ArtifactStore {
-  getDetectableImages?(): Promise<DetectableImage[]>;
+  getDetectableImages?(state: PerceptionState): Promise<DetectableImage[]>;
   findRelevantArtifacts?(state: PerceptionState): Promise<PerceptionResult[]>;
 }

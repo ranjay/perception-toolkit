@@ -91,82 +91,45 @@ describe('ArtifactDealer', () => {
     });
 
     it('Ignores unknown markers', async () => {
-      const result = await artDealer.updatePerceptionState({
+      const result = await artDealer.getPerceptionResults({
         markers: [{
           type: 'qrcode',
           value: 'Unknown Marker'
         }]
       });
-      assert.isArray(result.found);
-      assert.isEmpty(result.found);
-      assert.isArray(result.lost);
-      assert.isEmpty(result.lost);
+      assert.isArray(result);
+      assert.isEmpty(result);
     });
 
     it('Finds known barcodes', async () => {
       const markers = [];
-      for (const value of ['Barcode1', 'Barcode2', 'Barcode3', 'Barcode4', 'Barcode5']) {
+      await Promise.all(['Barcode1', 'Barcode2', 'Barcode3', 'Barcode4', 'Barcode5'].map(async (value, i) => {
         markers.push({
           type: 'qrcode',
           value
         });
-        const result = await artDealer.updatePerceptionState({ markers });
-        assert.isArray(result.found);
-        assert.lengthOf(result.found, 1);
-        assert.equal((result.found[0].target as Barcode).text, value);
-
-        assert.isArray(result.lost);
-        assert.isEmpty(result.lost);
-      }
+        const result = await artDealer.getPerceptionResults({ markers: Array.from(markers) });
+        assert.isArray(result);
+        assert.lengthOf(result, i + 1);
+        assert.equal((result[i].target as Barcode).text, value);
+      }));
     });
 
     it('Finds known images', async () => {
       const images = [];
-      for (const id of ['Id1', 'Id2', 'Id3']) {
+      await Promise.all(['Id1', 'Id2', 'Id3'].map(async (id, i) => {
         images.push({ id });
-        const result = await artDealer.updatePerceptionState({ images });
-        assert.isArray(result.found);
-        assert.lengthOf(result.found, 1);
-        assert.equal((result.found[0].target as ARImageTarget).name, id);
-
-        assert.isArray(result.lost);
-        assert.isEmpty(result.lost);
-      }
-    });
-
-    it('Loses known markers', async () => {
-      await artDealer.updatePerceptionState({
-        markers: [{
-          type: 'qrcode',
-          value: 'Barcode1'
-        }]
-      });
-      const result = await artDealer.updatePerceptionState({});
-      assert.isArray(result.found);
-      assert.isEmpty(result.found);
-
-      assert.isArray(result.lost);
-      assert.lengthOf(result.lost, 1);
-      assert.equal((result.lost[0].target as Barcode).text, 'Barcode1');
-    });
-
-    it('Loses known images', async () => {
-      await artDealer.updatePerceptionState({ images: [ { id: 'Id1' } ] });
-      const result = await artDealer.updatePerceptionState({});
-      assert.isArray(result.found);
-      assert.isEmpty(result.found);
-
-      assert.isArray(result.lost);
-      assert.lengthOf(result.lost, 1);
-      assert.equal((result.lost[0].target as ARImageTarget).name, 'Id1');
+        const result = await artDealer.getPerceptionResults({ images: Array.from(images) });
+        assert.isArray(result);
+        assert.lengthOf(result, i + 1);
+        assert.equal((result[i].target as ARImageTarget).name, id);
+      }));
     });
 
     it('Ignores geolocation', async () => {
-      const result = await artDealer.updatePerceptionState({ geo: {} });
-      assert.isArray(result.found);
-      assert.isEmpty(result.found);
-      assert.isArray(result.lost);
-      assert.isEmpty(result.lost);
+      const result = await artDealer.getPerceptionResults({ geo: {} });
+      assert.isArray(result);
+      assert.isEmpty(result);
     });
   });
 
@@ -186,25 +149,25 @@ describe('ArtifactDealer', () => {
         arContent: 'Fake URL'
       });
 
-      const result1 = await artDealer.updatePerceptionState({
+      const result1 = await artDealer.getPerceptionResults({
         markers: [{
           type: 'qrcode',
           value: 'Barcode1'
         }]
       });
-      assert.isArray(result1.found);
-      assert.lengthOf(result1.found, 1);
-      assert.equal((result1.found[0].target as Barcode).text, 'Barcode1');
+      assert.isArray(result1);
+      assert.lengthOf(result1, 1);
+      assert.equal((result1[0].target as Barcode).text, 'Barcode1');
 
-      const result2 = await artDealer.updatePerceptionState({
+      const result2 = await artDealer.getPerceptionResults({
         markers: [{
           type: 'qrcode',
           value: 'Barcode2'
         }]
       });
-      assert.isArray(result2.found);
-      assert.lengthOf(result2.found, 1);
-      assert.equal((result2.found[0].target as Barcode).text, 'Barcode2');
+      assert.isArray(result2);
+      assert.lengthOf(result2, 1);
+      assert.equal((result2[0].target as Barcode).text, 'Barcode2');
     });
   });
 });

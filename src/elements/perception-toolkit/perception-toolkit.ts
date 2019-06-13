@@ -24,6 +24,7 @@ import {
   PerceptionToolkitEvents,
   PerceptionToolkitFunctions,
 } from '../../../perception-toolkit/defs.js';
+import { ProbableTargets } from '../../artifacts/artifact-dealer.js';
 import { ArtifactStore } from '../../artifacts/stores/artifact-store.js';
 import { detectBarcodes } from '../../detectors/marker/barcode.js';
 import { addDetectionTarget, detectPlanarImages, getTarget } from '../../detectors/planar-image/planar-image.js';
@@ -37,12 +38,10 @@ import { vibrate } from '../../utils/vibrate.js';
 import { ActionButton } from '../action-button/action-button.js';
 import { Card, CardData } from '../card/card.js';
 import { DotLoader } from '../dot-loader/dot-loader.js';
-import { MeaningMaker } from '../meaning-maker/meaning-maker.js';
+import { MeaningMaker, PerceptionStateChangeResponse } from '../meaning-maker/meaning-maker.js';
 import { OnboardingCard } from '../onboarding-card/onboarding-card.js';
 import { hideOverlay, showOverlay } from '../overlay/overlay.js';
 import { StreamCapture } from '../stream-capture/stream-capture.js';
-import { PerceptionResultDelta, NextFrameContext } from '../../artifacts/artifact-dealer.js';
-import { DetectableImage } from '../../../defs/detected-image.js';
 
 window.PerceptionToolkit = window.PerceptionToolkit || {
   Elements: {} as PerceptionToolkitElements,
@@ -284,7 +283,7 @@ export class PerceptionToolkit extends HTMLElement {
     }
   }
 
-  private async prepareForNextFrame(nextFrameContext: NextFrameContext) {
+  private async prepareForNextFrame(nextFrameContext: ProbableTargets) {
     // Prep Image Targets
     // TODO: DIFF detectableImages from previous frame.  Only load new ones.
     if ((this.detectorsToUse.image || detectors === 'lazy' || detectors === 'all')
@@ -421,8 +420,10 @@ export class PerceptionToolkit extends HTMLElement {
   }
 
   private async onCaptureFrame(evt: Event) {
+    console.log('captureAndEmit', performance.now(), this.isProcessingFrame);
+
     // Lock until the frame has been processed.
-    if (this.isProcessingFrame) {
+    if (this.isProcessingFrame) { 
       return;
     }
     this.isProcessingFrame = true;
@@ -461,16 +462,17 @@ export class PerceptionToolkit extends HTMLElement {
       shouldLoadArtifactsFrom: window.PerceptionToolkit.config.shouldLoadArtifactsFrom
     });
 
+    if (response.found.length > 0) {
+      // TODO: Fire this every time a new target is found, not just new result
+      vibrate(200);
+    }
     const markerChangeEvt = fire(perceivedResults, this, { found: response.found, lost: response.lost });
 
     // If the developer prevents default on the marker changes event then don't
     // handle the UI updates; they're doing it themselves.
-    if (markerChangeEvt.defaultPrevented) {
-      return;
+    if (!markerChangeEvt.defaultPrevented) {
+      this.updateContentDisplay(response);
     }
-
-    vibrate(200);
-    this.updateContentDisplay(response);
 
     // Unlock!
     this.isProcessingFrame = false;
@@ -482,7 +484,7 @@ export class PerceptionToolkit extends HTMLElement {
     hideOverlay();
   }
 
-  private updateContentDisplay(contentDiff: PerceptionResultDelta) {
+  private updateContentDisplay(contentDiff: PerceptionStateChangeResponse) {
     if (!cardContainer) {
       log(`No card container provided, but event's default was not prevented`,
           DEBUG_LEVEL.ERROR);
@@ -493,7 +495,7 @@ export class PerceptionToolkit extends HTMLElement {
     this.createCardsForFoundItems(contentDiff);
   }
 
-  private handleUnknownItems(contentDiff: PerceptionResultDelta, marker: Marker) {
+  private handleUnknownItems(contentDiff: PerceptionStateChangeResponse, marker: Marker) {
     if (!cardContainer ||  // No card container.
         !acknowledgeUnknownItems ||  // The config says to ignore unknowns.
         contentDiff.found.length > 0 ||  // There are found items.
@@ -510,7 +512,7 @@ export class PerceptionToolkit extends HTMLElement {
   }
 
   // Remove 'unknown item' cards if there is now a found item.
-  private removeUnknownItemsIfFound(contentDiff: PerceptionResultDelta) {
+  private removeUnknownItemsIfFound(contentDiff: PerceptionStateChangeResponse) {
     if (!cardContainer || contentDiff.found.length === 0) {
       return;
     }
@@ -521,7 +523,7 @@ export class PerceptionToolkit extends HTMLElement {
     }
   }
 
-  private createCardsForFoundItems(contentDiff: PerceptionResultDelta) {
+  private createCardsForFoundItems(contentDiff: PerceptionStateChangeResponse) {
     if (!cardContainer) {
       return;
     }

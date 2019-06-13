@@ -70,7 +70,7 @@ export class LocalArtifactStore implements ArtifactStore {
     ];
   }
 
-  async getDetectableImages(): Promise<DetectableImage[]> {
+  async getDetectableImages(state: PerceptionState): Promise<DetectableImage[]> {
     return this.imageStore.getDetectableImages();
   }
 }
