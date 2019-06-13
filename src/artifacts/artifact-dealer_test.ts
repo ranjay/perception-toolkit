@@ -91,9 +91,11 @@ describe('ArtifactDealer', () => {
     });
 
     it('Ignores unknown markers', async () => {
-      const result = await artDealer.markerFound({
-        type: 'qrcode',
-        value: 'Unknown Marker'
+      const result = await artDealer.updatePerceptionState({
+        markers: [{
+          type: 'qrcode',
+          value: 'Unknown Marker'
+        }]
       });
       assert.isArray(result.found);
       assert.isEmpty(result.found);
@@ -102,11 +104,13 @@ describe('ArtifactDealer', () => {
     });
 
     it('Finds known barcodes', async () => {
+      const markers = [];
       for (const value of ['Barcode1', 'Barcode2', 'Barcode3', 'Barcode4', 'Barcode5']) {
-        const result = await artDealer.markerFound({
+        markers.push({
           type: 'qrcode',
           value
         });
+        const result = await artDealer.updatePerceptionState({ markers });
         assert.isArray(result.found);
         assert.lengthOf(result.found, 1);
         assert.equal((result.found[0].target as Barcode).text, value);
@@ -117,8 +121,10 @@ describe('ArtifactDealer', () => {
     });
 
     it('Finds known images', async () => {
+      const images = [];
       for (const id of ['Id1', 'Id2', 'Id3']) {
-        const result = await artDealer.imageFound({ id });
+        images.push({ id });
+        const result = await artDealer.updatePerceptionState({ images });
         assert.isArray(result.found);
         assert.lengthOf(result.found, 1);
         assert.equal((result.found[0].target as ARImageTarget).name, id);
@@ -129,14 +135,13 @@ describe('ArtifactDealer', () => {
     });
 
     it('Loses known markers', async () => {
-      await artDealer.markerFound({
-        type: 'qrcode',
-        value: 'Barcode1'
+      await artDealer.updatePerceptionState({
+        markers: [{
+          type: 'qrcode',
+          value: 'Barcode1'
+        }]
       });
-      const result = await artDealer.markerLost({
-        type: 'qrcode',
-        value: 'Barcode1'
-      });
+      const result = await artDealer.updatePerceptionState({});
       assert.isArray(result.found);
       assert.isEmpty(result.found);
 
@@ -146,8 +151,8 @@ describe('ArtifactDealer', () => {
     });
 
     it('Loses known images', async () => {
-      await artDealer.imageFound({ id: 'Id1' });
-      const result = await artDealer.imageLost({ id: 'Id1' });
+      await artDealer.updatePerceptionState({ images: [ { id: 'Id1' } ] });
+      const result = await artDealer.updatePerceptionState({});
       assert.isArray(result.found);
       assert.isEmpty(result.found);
 
@@ -157,7 +162,7 @@ describe('ArtifactDealer', () => {
     });
 
     it('Ignores geolocation', async () => {
-      const result = await artDealer.updateGeolocation({});
+      const result = await artDealer.updatePerceptionState({ geo: {} });
       assert.isArray(result.found);
       assert.isEmpty(result.found);
       assert.isArray(result.lost);
@@ -181,27 +186,25 @@ describe('ArtifactDealer', () => {
         arContent: 'Fake URL'
       });
 
-      const result1 = await artDealer.markerFound({
-        type: 'qrcode',
-        value: 'Barcode1'
+      const result1 = await artDealer.updatePerceptionState({
+        markers: [{
+          type: 'qrcode',
+          value: 'Barcode1'
+        }]
       });
       assert.isArray(result1.found);
       assert.lengthOf(result1.found, 1);
       assert.equal((result1.found[0].target as Barcode).text, 'Barcode1');
 
-      assert.isArray(result1.lost);
-      assert.isEmpty(result1.lost);
-
-      const result2 = await artDealer.markerFound({
-        type: 'qrcode',
-        value: 'Barcode2'
+      const result2 = await artDealer.updatePerceptionState({
+        markers: [{
+          type: 'qrcode',
+          value: 'Barcode2'
+        }]
       });
       assert.isArray(result2.found);
       assert.lengthOf(result2.found, 1);
       assert.equal((result2.found[0].target as Barcode).text, 'Barcode2');
-
-      assert.isArray(result2.lost);
-      assert.isEmpty(result2.lost);
     });
   });
 });

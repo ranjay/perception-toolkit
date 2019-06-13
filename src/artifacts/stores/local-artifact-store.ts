@@ -18,7 +18,7 @@
 import { DetectableImage, DetectedImage } from '../../../defs/detected-image.js';
 import { typeIsThing } from '../schema/core-schema-org.js';
 import { ARArtifact, ARTargetTypes } from '../schema/extension-ar-artifacts.js';
-import { ArtifactStore, PerceptionContext, PerceptionResult } from './artifact-store.js';
+import { ArtifactStore, PerceptionResult, PerceptionState } from './artifact-store.js';
 import { LocalImageStore } from './local-image-store.js';
 import { LocalMarkerStore } from './local-marker-store.js';
 
@@ -63,10 +63,10 @@ export class LocalArtifactStore implements ArtifactStore {
     return totalAdded;
   }
 
-  async findRelevantArtifacts?(context: PerceptionContext): Promise<PerceptionResult[]> {
+  async findRelevantArtifacts?(state: PerceptionState): Promise<PerceptionResult[]> {
     return [
-      ...this.markerStore.findRelevantArtifacts(context.markers),
-      ...this.imageStore.findRelevantArtifacts(context.images),
+      ...this.markerStore.findRelevantArtifacts(state.markers || []),
+      ...this.imageStore.findRelevantArtifacts(state.images || []),
     ];
   }
 

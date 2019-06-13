@@ -27,7 +27,7 @@ export class LocalMarkerStore {
     if (!barcode.text) {
       return false;
     }
-    this.markers.set(barcode.text, { trigger: barcode, artifact });
+    this.markers.set(barcode.text, { target: barcode, artifact });
     return true;
   }
 

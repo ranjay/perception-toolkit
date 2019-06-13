@@ -15,10 +15,10 @@
  * limitations under the License.
  */
 
+import { flat } from '../utils/flat.js';
 import { ArtifactDecoder } from './artifact-decoder.js';
 import { ARArtifact } from './schema/extension-ar-artifacts.js';
 import { JsonLd } from './schema/json-ld.js';
-import { flat } from '../utils/flat.js';
 
 // TODO: Consider merging from*Url functions and just branching on response content-type
 export class ArtifactLoader {

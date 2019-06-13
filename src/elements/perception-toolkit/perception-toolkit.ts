@@ -271,7 +271,7 @@ export class PerceptionToolkit extends HTMLElement {
       hideOverlay(overlayInit);
 
       // TODO: This sets up MM initial context.  May want to change how this works.
-      const nextFrameContext = await this.meaningMaker.perceive({
+      const nextFrameContext = await this.meaningMaker.updatePerceptionState({
         markers: [],
         geo: {},
         images: []
@@ -454,7 +454,7 @@ export class PerceptionToolkit extends HTMLElement {
     }
     */
 
-    const response = await this.meaningMaker.perceive({
+    const response = await this.meaningMaker.updatePerceptionState({
       markers: detectedMarkers,
       geo: {},
       images: detectedImages,

@@ -58,7 +58,7 @@ describe('Planar Image Detector', () => {
 
     const detections = await detectPlanarImages(await imageData, { root: '/base' });
     assert.equal(detections.length, 1);
-    assert.equal(detections[0].value, 'Lighthouse');
+    assert.equal(detections[0].id, 'Lighthouse');
     await removeDetectionTarget(id);
 
     const postRemovalDetections = await detectPlanarImages(await imageData, { root: '/base' });

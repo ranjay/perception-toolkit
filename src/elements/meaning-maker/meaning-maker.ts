@@ -19,16 +19,16 @@ import { Marker } from '../../../defs/marker.js';
 import { ArtifactDealer, NextFrameContext, PerceptionResultDelta } from '../../../src/artifacts/artifact-dealer.js';
 import { ArtifactLoader } from '../../artifacts/artifact-loader.js';
 import { ARArtifact } from '../../artifacts/schema/extension-ar-artifacts.js';
-import { ArtifactStore, PerceptionContext } from '../../artifacts/stores/artifact-store.js';
+import { ArtifactStore, PerceptionState } from '../../artifacts/stores/artifact-store.js';
 import { LocalArtifactStore } from '../../artifacts/stores/local-artifact-store.js';
 
 // TODO: Move this to config manager
 export type ShouldLoadArtifactsFromCallback = ((url: URL) => boolean) | string[];
 
-export interface PerceiveRequest extends PerceptionContext {
+export interface PerceptionStateChangeRequest extends PerceptionState {
   shouldLoadArtifactsFrom?: ShouldLoadArtifactsFromCallback;
 }
-export interface PerceiveResponse extends PerceptionResultDelta, NextFrameContext {}
+export interface PerceptionStateChangeResponse extends PerceptionResultDelta, NextFrameContext {}
 
 /**
  * @hidden
@@ -68,29 +68,44 @@ export class MeaningMaker {
    * Load artifact content for initial set.
    */
   async loadArtifactsFromUrl(url: URL): Promise<ARArtifact[]> {
-    try {
-      const artifacts = await this.artloader.fromUrl(url);
-      this.saveArtifacts(artifacts);
-      return artifacts;
-    } catch (ex) {
-      console.error(ex);
+    const artifacts = await this.artloader.fromUrl(url);
+    this.saveArtifacts(artifacts);
+    return artifacts;
+  }
+
+  /**
+   * Load artifact content from url on same origin, usually discovered from environment.
+   */
+  async loadArtifactsFromSupportedUrl(url: URL,
+                                              shouldLoadArtifactsFrom?: ShouldLoadArtifactsFromCallback) {
+    // If there's no callback provided, match to current origin.
+    if (!shouldLoadArtifactsFrom) {
+      shouldLoadArtifactsFrom = (url: URL) => url.origin === window.location.origin;
+    } else if (Array.isArray(shouldLoadArtifactsFrom)) {
+      // If an array of strings, remap it.
+      const origins = shouldLoadArtifactsFrom;
+      shouldLoadArtifactsFrom = (url: URL) => !!origins.find(o => o === url.origin);
     }
-    return [];
+
+    if (!shouldLoadArtifactsFrom(url)) {
+      return [];
+    }
+
+    return this.loadArtifactsFromUrl(url);
   }
 
   /*
-   * TODO:
    * Returns the full set of potential images which are worthy of detection at this moment.
    * Each DetectableImage has one unique id, and also a list of potential Media which encodes it.
    * It is up to the caller to select the correct media encoding.
    */
-  async perceive(request: PerceiveRequest): Promise<PerceiveResponse>  {
-    for (const marker of request.markers) {
+  async updatePerceptionState(request: PerceptionStateChangeRequest): Promise<PerceptionStateChangeResponse>  {
+    for (const marker of request.markers || []) {
       this.checkMarkerIsDynamic(marker, request.shouldLoadArtifactsFrom);
     }
 
-    const ret: PerceiveResponse = {
-      ...await this.artdealer.perceive(request),
+    const ret: PerceptionStateChangeResponse = {
+      ...await this.artdealer.updatePerceptionState(request),
       ...await this.artdealer.getNextFrameContext(request)
     };
     return ret;
@@ -114,27 +129,6 @@ export class MeaningMaker {
     } catch (_) {
       // Do nothing if this isn't a valid URL
     }
-  }
-
-  /**
-   * Load artifact content from url on same origin, usually discovered from environment.
-   */
-  private async loadArtifactsFromSupportedUrl(url: URL,
-                                              shouldLoadArtifactsFrom?: ShouldLoadArtifactsFromCallback) {
-    // If there's no callback provided, match to current origin.
-    if (!shouldLoadArtifactsFrom) {
-      shouldLoadArtifactsFrom = (url: URL) => url.origin === window.location.origin;
-    } else if (Array.isArray(shouldLoadArtifactsFrom)) {
-      // If an array of strings, remap it.
-      const origins = shouldLoadArtifactsFrom;
-      shouldLoadArtifactsFrom = (url: URL) => !!origins.find(o => o === url.origin);
-    }
-
-    if (!shouldLoadArtifactsFrom(url)) {
-      return [];
-    }
-
-    return this.loadArtifactsFromUrl(url);
   }
 
   private saveArtifacts(artifacts: ARArtifact[]) {

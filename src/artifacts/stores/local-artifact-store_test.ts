@@ -106,19 +106,34 @@ describe('LocalArtifactStore', () => {
     });
 
     it('finds barcodes', async () => {
-      const results = await localArtifactStore.findRelevantArtifacts(
-        [{ type: 'qrcode', value: 'Barcode Value' }], {}, []);
+      const results = await localArtifactStore.findRelevantArtifacts({
+        markers: [{
+          type: 'qrcode',
+          value: 'Barcode Value'
+        }]
+      });
       assert.lengthOf(results, 1);
     });
 
     it('finds images', async () => {
-      const results = await localArtifactStore.findRelevantArtifacts([], {}, [ { id: 'ID1' } ]);
+      const results = await localArtifactStore.findRelevantArtifacts({
+        images: [{
+          id: 'ID1'
+        }]
+      });
       assert.lengthOf(results, 1);
     });
 
     it('can find both barcodes and images at once', async () => {
-      const results = await localArtifactStore.findRelevantArtifacts(
-        [{ type: 'qrcode', value: 'Barcode Value' }], {}, [{ id: 'ID1' }]);
+      const results = await localArtifactStore.findRelevantArtifacts({
+        markers: [{
+          type: 'qrcode',
+          value: 'Barcode Value'
+        }],
+        images: [{
+          id: 'ID1'
+        }]
+      });
       assert.lengthOf(results, 2);
     });
   });

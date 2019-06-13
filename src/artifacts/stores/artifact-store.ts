@@ -23,21 +23,21 @@ import { ARArtifact, ARTargetTypes } from '../schema/extension-ar-artifacts.js';
 /*
  * PerceptionContext is usually created per-captured video frame, and encodes the most up to date context.
  */
-export interface PerceptionContext {
-  markers: Marker[];
-  geo: GeoCoordinates;
-  images: DetectedImage[];
+export interface PerceptionState {
+  markers?: Marker[];
+  geo?: GeoCoordinates;
+  images?: DetectedImage[];
 }
 
 /*
  * PerceptionResult combines an ARArtifact result, and the specific ARTargetType that was used to trigger it.
  */
 export interface PerceptionResult {
+  target?: ARTargetTypes;
   artifact: ARArtifact;
-  trigger?: ARTargetTypes;
 }
 
 export interface ArtifactStore {
   getDetectableImages?(): Promise<DetectableImage[]>;
-  findRelevantArtifacts?(context: PerceptionContext): Promise<PerceptionResult[]>;
+  findRelevantArtifacts?(state: PerceptionState): Promise<PerceptionResult[]>;
 }

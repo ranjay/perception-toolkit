@@ -28,14 +28,14 @@ export class LocalImageStore {
       return false;
     }
 
-    this.images.set(imageTarget.name, { trigger: imageTarget, artifact });
+    this.images.set(imageTarget.name, { target: imageTarget, artifact });
     return true;
   }
 
   getDetectableImages(): DetectableImage[] {
     const allDetectableImages: DetectableImage[] = [];
 
-    for (const { trigger: target } of this.images.values()) {
+    for (const { target: target } of this.images.values()) {
       if (!typeIsThing(target) || target['@type'] !== 'ARImageTarget' || !target.name) {
         continue;
       }

@@ -17,7 +17,7 @@
 
 import { DetectableImage } from '../../defs/detected-image.js';
 import { flat } from '../utils/flat.js';
-import { ArtifactStore, PerceptionContext, PerceptionResult } from './stores/artifact-store.js';
+import { ArtifactStore, PerceptionResult, PerceptionState } from './stores/artifact-store.js';
 
 export interface PerceptionResultDelta {
   found: PerceptionResult[];
@@ -36,7 +36,7 @@ export class ArtifactDealer {
     this.artstores.push(artstore);
   }
 
-  async getNextFrameContext(request: PerceptionContext): Promise<NextFrameContext> {
+  async getNextFrameContext(request: PerceptionState): Promise<NextFrameContext> {
     const allStoreResults = await Promise.all(this.artstores.map((artstore) => {
       if (!artstore.getDetectableImages) {
         return [];
@@ -46,7 +46,7 @@ export class ArtifactDealer {
     return { detectableImages: flat(allStoreResults) };
   }
 
-  async perceive(context: PerceptionContext): Promise<PerceptionResultDelta> {
+  async updatePerceptionState(context: PerceptionState): Promise<PerceptionResultDelta> {
     // Using current context (geo, markers), ask artstores to compute relevant artifacts
     const allStoreResults = await Promise.all(this.artstores.map((artstore) => {
       if (!artstore.findRelevantArtifacts) {
