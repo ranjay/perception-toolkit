@@ -423,8 +423,6 @@ export class PerceptionToolkit extends HTMLElement {
   }
 
   private async onCaptureFrame(evt: Event) {
-    console.log('captureAndEmit', performance.now(), this.isProcessingFrame);
-
     // Lock until the frame has been processed.
     if (this.isProcessingFrame) { 
       return;
