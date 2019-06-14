@@ -174,9 +174,9 @@ export class MeaningMaker {
 
     // Perception state includes all the markers/images we have seen recently.
     const state: PerceptionState = {
-      markers: Array.from(this.lastSeenMarkers.keys()).map((markerJson) => JSON.parse(markerJson) as Marker),
+      markers: Array.from(this.lastSeenMarkers.values(), ({ marker }) => marker),
       geo: request.geo,
-      images: Array.from(this.lastSeenImages.keys()).map((imageJson) => JSON.parse(imageJson) as DetectedImage)
+      images: Array.from(this.lastSeenImages.values(), ({ image }) => image)
     };
 
     const nearbyResults = await this.artdealer.getPerceptionResults(state);
