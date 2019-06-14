@@ -15,13 +15,14 @@
  * limitations under the License.
  */
 
+import { DetectedImage } from '../../../defs/detected-image.js';
 import { Marker } from '../../../defs/marker.js';
 import { ArtifactDealer, ProbableTargets } from '../../../src/artifacts/artifact-dealer.js';
 import { ArtifactLoader } from '../../artifacts/artifact-loader.js';
 import { ARArtifact } from '../../artifacts/schema/extension-ar-artifacts.js';
 import { ArtifactStore, PerceptionResult, PerceptionState } from '../../artifacts/stores/artifact-store.js';
 import { LocalArtifactStore } from '../../artifacts/stores/local-artifact-store.js';
-import { DetectedImage } from '../../../defs/detected-image.js';
+import { generateMarkerId } from '../../utils/generate-marker-id.js';
 
 // TODO: Move this to config manager
 export type ShouldLoadArtifactsFromCallback = ((url: URL) => boolean) | string[];
@@ -32,8 +33,8 @@ export interface PerceptionStateChangeRequest extends PerceptionState {
 export interface PerceptionStateChangeResponse extends ProbableTargets {
   found: PerceptionResult[];
   lost: PerceptionResult[];
+  newTargets: Array<Marker | DetectedImage>;
 }
-
 
 /**
  * @hidden
@@ -57,8 +58,8 @@ export class MeaningMaker {
   private readonly artdealer = new ArtifactDealer();
   private prevPerceptionResults = new Set<PerceptionResult>();
   private artifactsForUrl = new Map<string, ARArtifact[]>();
-  private lastSeenMarkers = new Map<string, number>();
-  private lastSeenImages = new Map<string, number>();
+  private lastSeenMarkers = new Map<string, { marker: Marker, timestamp: number }>();
+  private lastSeenImages = new Map<string, { image: DetectedImage, timestamp: number }>();
 
   constructor() {
     this.addArtifactStore(this.artstore);
@@ -73,19 +74,27 @@ export class MeaningMaker {
     this.saveArtifacts(artifacts);
   }
 
-  get lastSeenTimeBuffer() {
-    return this._lastSeenTimeBuffer;
-  }
-  set lastSeenTimeBuffer(ms: number) {
-    this._lastSeenTimeBuffer = ms;
-  }
+  /**
+   * Get/Set the amount of time (in ms) to wait after a target is last seen (i.e. included in `PerceptionState`
+   * argument of `updatePerceptionState`), will it actually be considered lost.
+   *
+   * This is used so we do not spuriously lose/find targets whenever they are not detected in a few frame captures.
+   */
+  get lastSeenTimeBuffer()           { return this._lastSeenTimeBuffer; }
+  set lastSeenTimeBuffer(ms: number) { this._lastSeenTimeBuffer = ms; }
 
+  /**
+   * Add another ArtifactStore to the ArtifactDealer.
+   */
   addArtifactStore(store: ArtifactStore) {
     this.artdealer.addArtifactStore(store);
   }
 
   /**
-   * Load artifact content for initial set.
+   * Load artifact content from Url, unconditionally.
+   *
+   * Usually this is used only for loading Urls which were explicitly configured by developer, on startup.
+   * See `loadArtifactsFromSupportedUrl` (below) for the more common case.
    */
   async loadArtifactsFromUrl(url: URL): Promise<ARArtifact[]> {
     if (this.artifactsForUrl.has(url.toString())) {
@@ -98,7 +107,11 @@ export class MeaningMaker {
   }
 
   /**
-   * Load artifact content from url on same origin, usually discovered from environment.
+   * Load artifact content from url, only if Url is deemed appropriate (by config options).
+   *
+   * Usually this is used for Urls which not expected, but discovered (e.g. from URL-based Markers).
+   *
+   * By default, we restrict to same-origin, but you can pass a custom fn or list of domains.
    */
   async loadArtifactsFromSupportedUrl(url: URL,
                                       shouldLoadArtifactsFrom?: ShouldLoadArtifactsFromCallback) {
@@ -124,24 +137,34 @@ export class MeaningMaker {
    * It is up to the caller to select the correct media encoding.
    */
   async updatePerceptionState(request: PerceptionStateChangeRequest): Promise<PerceptionStateChangeResponse>  {
-    // First, update lastSeen times.
+    const newTargets = [];
+
+    // First, update lastSeen times for all the targets.  Keep track of new targets.
     const now = performance.now();
     for (const marker of request.markers || []) {
-      this.lastSeenMarkers.set(JSON.stringify(marker), now);
+      const markerId = generateMarkerId(marker);
+      if (!this.lastSeenMarkers.has(markerId)) {
+        newTargets.push(marker);
+      }
+      this.lastSeenMarkers.set(markerId, { marker, timestamp: now });
     }
     for (const image of request.images || []) {
-      this.lastSeenImages.set(JSON.stringify(image), now);
+      const imageId = image.id;
+      if (!this.lastSeenMarkers.has(imageId)) {
+        newTargets.push(image);
+      }
+      this.lastSeenImages.set(imageId, { image, timestamp: now });
     }
 
     // Now, remove all the target that we haven't seen for a while
-    for (const [marker, timestamp] of this.lastSeenMarkers.entries()) {
+    for (const [markerId, { timestamp }] of this.lastSeenMarkers.entries()) {
       if (now - timestamp > this._lastSeenTimeBuffer) {
-        this.lastSeenMarkers.delete(marker);
+        this.lastSeenMarkers.delete(markerId);
       }
     }
-    for (const [image, timestamp] of this.lastSeenImages.entries()) {
+    for (const [imageId, { timestamp }] of this.lastSeenImages.entries()) {
       if (now - timestamp > this.lastSeenTimeBuffer) {
-        this.lastSeenImages.delete(image);
+        this.lastSeenImages.delete(imageId);
       }
     }
 
@@ -172,6 +195,7 @@ export class MeaningMaker {
     const ret: PerceptionStateChangeResponse = {
       found,
       lost,
+      newTargets,
       ...await this.artdealer.predictPerceptionTargets(request)
     };
 

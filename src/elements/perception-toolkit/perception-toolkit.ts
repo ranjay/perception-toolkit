@@ -440,24 +440,6 @@ export class PerceptionToolkit extends HTMLElement {
       this.detectorsToUse.image ? detectPlanarImages(imgData, { root }) : [],
     ]);
 
-    // TODO: Fire marker found events.  How to show card for "unrecognized" Marker?
-    /*
-    for (const marker of markers) {
-      const targetAlreadyDetected = this.detectedTargets.has(target);
-
-      // Update the last time this marker was seen.
-      this.detectedTargets.set(target, self.performance.now());
-      if (targetAlreadyDetected) {
-        continue;
-      }
-
-      log(target.value, DEBUG_LEVEL.INFO, 'Detect');
-
-      // Only fire the event if the marker is freshly detected.
-      fire(markerDetect, this, target);
-    }
-    */
-
     const response = await this.meaningMaker.updatePerceptionState({
       markers: detectedMarkers,
       geo: {},
@@ -465,16 +447,28 @@ export class PerceptionToolkit extends HTMLElement {
       shouldLoadArtifactsFrom: window.PerceptionToolkit.config.shouldLoadArtifactsFrom
     });
 
-    if (response.found.length > 0) {
-      // TODO: Fire this every time a new target is found, not just new result
+    // Vibrate if we have at least 1 new target -- even if we don't have content for it.
+    if (response.newTargets.length > 0) {
       vibrate(200);
-    }
-    const markerChangeEvt = fire(perceivedResults, this, { found: response.found, lost: response.lost });
 
-    // If the developer prevents default on the marker changes event then don't
-    // handle the UI updates; they're doing it themselves.
-    if (!markerChangeEvt.defaultPrevented) {
-      this.updateContentDisplay(response);
+      for (const target of response.newTargets) {
+        log(target, DEBUG_LEVEL.INFO, 'Detect');
+        fire(markerDetect, this, target);
+      }
+    }
+
+    // Make changes if results changed
+    if (response.found.length > 0 || response.lost.length > 0) {
+      const markerChangeEvt = fire(perceivedResults, this, {
+          found: Array.from(response.found),
+          lost: Array.from(response.lost)
+        });
+
+      // If the developer prevents default on the marker changes event then don't
+      // handle the UI updates; they're doing it themselves.
+      if (!markerChangeEvt.defaultPrevented) {
+        this.updateContentDisplay(response);
+      }
     }
 
     // Unlock!

@@ -21,7 +21,13 @@ import { generateMarkerId } from './generate-marker-id.js';
 
 describe('Generate Marker ID', () => {
   it('generates marker IDs', async () => {
-    const id = generateMarkerId('foo', 'bar');
+    const id = generateMarkerId({ type: 'foo', value: 'bar' });
     assert.equal(id, 'foo__bar');
+  });
+
+  it('different marker types have different ids', async () => {
+    const id1 = generateMarkerId({ type: 'barcode', value: 'bar' });
+    const id2 = generateMarkerId({ type: 'qr_code', value: 'bar' });
+    assert.notEqual(id1, id2);
   });
 });

@@ -15,10 +15,12 @@
  * limitations under the License.
  */
 
+import { Marker } from '../../defs/marker';
+
 /**
  * Convert a marker type (barcode, qrcode, etc) and its value into a unique id
  *
  */
-export function generateMarkerId(type: string, value: string): string {
-  return type + '__' + value;
+export function generateMarkerId(marker: Marker): string {
+  return marker.type + '__' + marker.value;
 }
