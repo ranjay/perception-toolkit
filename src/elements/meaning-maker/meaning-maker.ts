@@ -21,6 +21,7 @@ import { ArtifactLoader } from '../../artifacts/artifact-loader.js';
 import { ARArtifact } from '../../artifacts/schema/extension-ar-artifacts.js';
 import { ArtifactStore, PerceptionResult, PerceptionState } from '../../artifacts/stores/artifact-store.js';
 import { LocalArtifactStore } from '../../artifacts/stores/local-artifact-store.js';
+import { DetectedImage } from '../../../defs/detected-image.js';
 
 // TODO: Move this to config manager
 export type ShouldLoadArtifactsFromCallback = ((url: URL) => boolean) | string[];
@@ -32,6 +33,7 @@ export interface PerceptionStateChangeResponse extends ProbableTargets {
   found: PerceptionResult[];
   lost: PerceptionResult[];
 }
+
 
 /**
  * @hidden
@@ -47,11 +49,16 @@ export interface PerceptionStateChangeResponse extends ProbableTargets {
  * * Makes sure to only index content from supported domains/URLs.
  */
 export class MeaningMaker {
+  // TODO: this should probably a set # of frames, i.e. N * ms-between-captures-in-passive-mode
+  private _lastSeenTimeBuffer = 2000; // ms
+
   private readonly artloader = new ArtifactLoader();
   private readonly artstore = new LocalArtifactStore();
   private readonly artdealer = new ArtifactDealer();
   private prevPerceptionResults = new Set<PerceptionResult>();
   private artifactsForUrl = new Map<string, ARArtifact[]>();
+  private lastSeenMarkers = new Map<string, number>();
+  private lastSeenImages = new Map<string, number>();
 
   constructor() {
     this.addArtifactStore(this.artstore);
@@ -64,6 +71,13 @@ export class MeaningMaker {
     const artifacts = await this.artloader.fromElement(document, document.URL);
     this.artifactsForUrl.set(document.URL, artifacts);
     this.saveArtifacts(artifacts);
+  }
+
+  get lastSeenTimeBuffer() {
+    return this._lastSeenTimeBuffer;
+  }
+  set lastSeenTimeBuffer(ms: number) {
+    this._lastSeenTimeBuffer = ms;
   }
 
   addArtifactStore(store: ArtifactStore) {
@@ -110,16 +124,39 @@ export class MeaningMaker {
    * It is up to the caller to select the correct media encoding.
    */
   async updatePerceptionState(request: PerceptionStateChangeRequest): Promise<PerceptionStateChangeResponse>  {
+    // First, update lastSeen times.
+    const now = performance.now();
     for (const marker of request.markers || []) {
-      // TODO: update time for those we've seen already
-      // TODO: Promise.all these
-      await this.checkMarkerIsDynamic(marker, request.shouldLoadArtifactsFrom);
+      this.lastSeenMarkers.set(JSON.stringify(marker), now);
     }
     for (const image of request.images || []) {
-      // TODO: update time for those we've seen already
+      this.lastSeenImages.set(JSON.stringify(image), now);
     }
 
-    const nearbyResults = await this.artdealer.getPerceptionResults(request);
+    // Now, remove all the target that we haven't seen for a while
+    for (const [marker, timestamp] of this.lastSeenMarkers.entries()) {
+      if (now - timestamp > this._lastSeenTimeBuffer) {
+        this.lastSeenMarkers.delete(marker);
+      }
+    }
+    for (const [image, timestamp] of this.lastSeenImages.entries()) {
+      if (now - timestamp > this.lastSeenTimeBuffer) {
+        this.lastSeenImages.delete(image);
+      }
+    }
+
+    // Check if markers are URLs worth indexing
+    await Promise.all((request.markers || [])
+        .map((marker) => this.checkMarkerIsDynamic(marker, request.shouldLoadArtifactsFrom)));
+
+    // Perception state includes all the markers/images we have seen recently.
+    const state: PerceptionState = {
+      markers: Array.from(this.lastSeenMarkers.keys()).map((markerJson) => JSON.parse(markerJson) as Marker),
+      geo: request.geo,
+      images: Array.from(this.lastSeenImages.keys()).map((imageJson) => JSON.parse(imageJson) as DetectedImage)
+    };
+
+    const nearbyResults = await this.artdealer.getPerceptionResults(state);
     const uniqueNearbyResults = new Set(nearbyResults);
 
     // Diff with previous list to compute new/old artifacts.

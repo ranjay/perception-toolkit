@@ -22,6 +22,7 @@ import { MeaningMaker } from './meaning-maker.js';
 async function initMM() {
   const meaningMaker = new MeaningMaker();
   await meaningMaker.init();
+  meaningMaker.lastSeenTimeBuffer = 0;
   return meaningMaker;
 }
 
