@@ -42,6 +42,7 @@ import { MeaningMaker, PerceptionStateChangeResponse } from '../meaning-maker/me
 import { OnboardingCard } from '../onboarding-card/onboarding-card.js';
 import { hideOverlay, showOverlay } from '../overlay/overlay.js';
 import { StreamCapture } from '../stream-capture/stream-capture.js';
+import { DetectedImage } from '../../../defs/detected-image.js';
 
 window.PerceptionToolkit = window.PerceptionToolkit || {
   Elements: {} as PerceptionToolkitElements,
@@ -272,12 +273,8 @@ export class PerceptionToolkit extends HTMLElement {
       await Promise.all(this.startupDetections);
       hideOverlay(overlayInit);
 
-      // TODO: This sets up MM initial context.  May want to change how this works.
-      const nextFrameContext = await this.meaningMaker.updatePerceptionState({
-        markers: [],
-        geo: {},
-        images: []
-      });
+      // Sets up MM initial context.
+      const nextFrameContext = await this.meaningMaker.updatePerceptionState({});
       await this.prepareForNextFrame(nextFrameContext);
 
       this.hideLoaderIfNeeded();
@@ -288,7 +285,6 @@ export class PerceptionToolkit extends HTMLElement {
 
   private async prepareForNextFrame(nextFrameContext: ProbableTargets) {
     // Prep Image Targets
-    // TODO: DIFF detectableImages from previous frame.  Only load new ones.
     if ((this.detectorsToUse.image || detectors === 'lazy' || detectors === 'all')
         && nextFrameContext.detectableImages.length > 0) {
       const overlayInit = { id: 'pt.imagetargets', small: true };
@@ -424,7 +420,7 @@ export class PerceptionToolkit extends HTMLElement {
 
   private async onCaptureFrame(evt: Event) {
     // Lock until the frame has been processed.
-    if (this.isProcessingFrame) { 
+    if (this.isProcessingFrame) {
       return;
     }
     this.isProcessingFrame = true;
@@ -469,6 +465,17 @@ export class PerceptionToolkit extends HTMLElement {
       }
     }
 
+    // See if we have any "unknown" markers
+    if (response.newTargets.length > response.found.length) {
+      if (response.found.length === 0) {
+        // TODO: We cannot have unknown DetectedImage, so can cast to Marker -- but handleUnknownItems
+        // should probably handle all target types.
+        this.handleUnknownItems(response.newTargets as Marker[]);
+      } else {
+        // TODO: We found at least one result, so how can we know which is unhandled?
+      }
+    }
+
     // Unlock!
     this.isProcessingFrame = false;
   }
@@ -490,19 +497,25 @@ export class PerceptionToolkit extends HTMLElement {
     this.createCardsForFoundItems(contentDiff);
   }
 
-  private handleUnknownItems(contentDiff: PerceptionStateChangeResponse, marker: Marker) {
+  private handleUnknownItems(targets: Marker[]) {
     if (!cardContainer ||  // No card container.
-        !acknowledgeUnknownItems ||  // The config says to ignore unknowns.
-        contentDiff.found.length > 0 ||  // There are found items.
-        contentDiff.lost.length > 0 ||  // There are lost items.
-        cardContainer.childNodes.length >= maxCards) {
+        !acknowledgeUnknownItems // The config says to ignore unknowns.
+    ) {
       return;
     }
 
-    const card = new Card();
-    card.src = `Unknown value: ${marker.value}`;
-    card.classList.add('item-not-known');
-    cardContainer.appendChild(card);
+    for (const target of targets) {
+      // Prevent too many cards from showing.
+      if (cardContainer.childNodes.length >= maxCards) {
+        break;
+      }
+
+      const card = new Card();
+      card.src = `Unknown value: ${target.value}`;
+      card.classList.add('item-not-known');
+      cardContainer.appendChild(card);
+    }
+
     return;
   }
 
@@ -525,9 +538,9 @@ export class PerceptionToolkit extends HTMLElement {
 
     // Create a card for every found marker.
     for (const { artifact: { arContent } } of contentDiff.found) {
-      // Prevent multiple cards from showing.
+      // Prevent too many from showing.
       if (cardContainer.childNodes.length >= maxCards) {
-        continue;
+        break;
       }
 
       const cardContent = arContent as CardData;

@@ -21,7 +21,7 @@ import { GeoCoordinates } from '../schema/core-schema-org.js';
 import { ARArtifact, ARTargetTypes } from '../schema/extension-ar-artifacts.js';
 
 /*
- * PerceptionContext is usually created per-captured video frame, and encodes the most up to date context.
+ * PerceptionState is usually created per-captured video frame, and includes all the currently detected targets.
  */
 export interface PerceptionState {
   markers?: Marker[];
@@ -30,7 +30,7 @@ export interface PerceptionState {
 }
 
 /*
- * PerceptionResult combines an ARArtifact result, and the specific ARTargetType that was used to trigger it.
+ * PerceptionResult combines an ARArtifact result, with the specific ARTargetType that was used to trigger it.
  */
 export interface PerceptionResult {
   target?: ARTargetTypes;
