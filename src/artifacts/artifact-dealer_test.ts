@@ -20,154 +20,160 @@ import { LocalArtifactStore } from './stores/local-artifact-store.js';
 const { assert } = chai;
 
 import { ArtifactDealer } from './artifact-dealer.js';
-import { Barcode } from './schema/core-schema-org.js';
-import { ARImageTarget } from './schema/extension-ar-artifacts.js';
+import { ArtifactStore } from './stores/artifact-store.js';
 
 describe('ArtifactDealer', () => {
   let artDealer: ArtifactDealer;
 
   beforeEach(() => {
     artDealer = new ArtifactDealer();
-  });
+    const store = new LocalArtifactStore();
+    artDealer.addArtifactStore(store);
 
-  it('supports adding stores', () => {
-    artDealer.addArtifactStore(new LocalArtifactStore());
-  });
-
-  describe('Adding and Finding', () => {
-    beforeEach(() => {
-      const store = new LocalArtifactStore();
-      artDealer.addArtifactStore(store);
-
-      store.addArtifact({
-        arTarget: { '@type': 'Barcode', 'text': 'Barcode1' },
-        arContent: 'Fake URL'
-      });
-      store.addArtifact({
-        arTarget: [
-          { '@type': 'Barcode', 'text': 'Barcode2' },
-          { '@type': 'Unsupported' },
-        ],
-        arContent: 'Fake URL'
-      });
-      store.addArtifact({
-        arTarget: [
-          { '@type': 'Barcode', 'text': 'Barcode3' },
-          { '@type': 'Barcode', 'text': 'Barcode4' },
-          { '@type': 'Barcode', 'text': 'Barcode5' },
-        ],
-        arContent: 'Fake URL'
-      });
-      store.addArtifact({
-        arTarget: {
-          '@type': 'ARImageTarget',
-          'name': 'Id1',
-          'image': 'Fake URL'
-        },
-        arContent: 'Fake URL'
-      });
-      store.addArtifact({
-        arTarget: {
-          '@type': 'ARImageTarget',
-          'name': 'Id2',
-          'image': {
-            '@type': 'ImageObject',
-            'contentUrl': 'FakeUrl'
-          }
-        },
-        arContent: 'Fake URL'
-      });
-      store.addArtifact({
-        arTarget: {
-          '@type': 'ARImageTarget',
-          'name': 'Id3',
-          'encoding': [{
-            '@type': 'ImageObject',
-            'contentUrl': 'FakeUrl'
-          }]
-        },
-        arContent: 'Fake URL'
-      });
+    store.addArtifact({
+      arTarget: { '@type': 'Barcode', 'text': 'Barcode1' },
+      arContent: 'Fake URL'
     });
-
-    it('Ignores unknown markers', async () => {
-      const result = await artDealer.getPerceptionResults({
-        markers: [{
-          type: 'qrcode',
-          value: 'Unknown Marker'
+    store.addArtifact({
+      arTarget: [
+        { '@type': 'Barcode', 'text': 'Barcode2' },
+        { '@type': 'Unsupported' },
+      ],
+      arContent: 'Fake URL'
+    });
+    store.addArtifact({
+      arTarget: [
+        { '@type': 'Barcode', 'text': 'Barcode3' },
+        { '@type': 'Barcode', 'text': 'Barcode4' },
+        { '@type': 'Barcode', 'text': 'Barcode5' },
+      ],
+      arContent: 'Fake URL'
+    });
+    store.addArtifact({
+      arTarget: {
+        '@type': 'ARImageTarget',
+        'name': 'Id1',
+        'image': 'Fake URL'
+      },
+      arContent: 'Fake URL'
+    });
+    store.addArtifact({
+      arTarget: {
+        '@type': 'ARImageTarget',
+        'name': 'Id2',
+        'image': {
+          '@type': 'ImageObject',
+          'contentUrl': 'FakeUrl'
+        }
+      },
+      arContent: 'Fake URL'
+    });
+    store.addArtifact({
+      arTarget: {
+        '@type': 'ARImageTarget',
+        'name': 'Id3',
+        'encoding': [{
+          '@type': 'ImageObject',
+          'contentUrl': 'FakeUrl'
         }]
-      });
-      assert.isArray(result);
-      assert.isEmpty(result);
-    });
-
-    it('Finds known barcodes', async () => {
-      const markers = [];
-      await Promise.all(['Barcode1', 'Barcode2', 'Barcode3', 'Barcode4', 'Barcode5'].map(async (value, i) => {
-        markers.push({
-          type: 'qrcode',
-          value
-        });
-        const result = await artDealer.getPerceptionResults({ markers: Array.from(markers) });
-        assert.isArray(result);
-        assert.lengthOf(result, i + 1);
-        assert.equal((result[i].target as Barcode).text, value);
-      }));
-    });
-
-    it('Finds known images', async () => {
-      const images = [];
-      await Promise.all(['Id1', 'Id2', 'Id3'].map(async (id, i) => {
-        images.push({ id });
-        const result = await artDealer.getPerceptionResults({ images: Array.from(images) });
-        assert.isArray(result);
-        assert.lengthOf(result, i + 1);
-        assert.equal((result[i].target as ARImageTarget).name, id);
-      }));
-    });
-
-    it('Ignores geolocation', async () => {
-      const result = await artDealer.getPerceptionResults({ geo: {} });
-      assert.isArray(result);
-      assert.isEmpty(result);
+      },
+      arContent: 'Fake URL'
     });
   });
 
-  describe('Multiple Stores', () => {
-    it('supports adding multiple stores', async () => {
-      const store1 = new LocalArtifactStore();
-      const store2 = new LocalArtifactStore();
-      artDealer.addArtifactStore(store1);
-      artDealer.addArtifactStore(store2);
-
-      store1.addArtifact({
-        arTarget: { '@type': 'Barcode', 'text': 'Barcode1' },
-        arContent: 'Fake URL'
-      });
-      store2.addArtifact({
-        arTarget: { '@type': 'Barcode', 'text': 'Barcode2' },
-        arContent: 'Fake URL'
-      });
-
-      const result1 = await artDealer.getPerceptionResults({
-        markers: [{
-          type: 'qrcode',
-          value: 'Barcode1'
-        }]
-      });
-      assert.isArray(result1);
-      assert.lengthOf(result1, 1);
-      assert.equal((result1[0].target as Barcode).text, 'Barcode1');
-
-      const result2 = await artDealer.getPerceptionResults({
-        markers: [{
-          type: 'qrcode',
-          value: 'Barcode2'
-        }]
-      });
-      assert.isArray(result2);
-      assert.lengthOf(result2, 1);
-      assert.equal((result2[0].target as Barcode).text, 'Barcode2');
+  it('Ignores unknown markers', async () => {
+    const result = await artDealer.getPerceptionResults({
+      markers: [{
+        type: 'qrcode',
+        value: 'Unknown Marker'
+      }]
     });
+    assert.isArray(result);
+    assert.isEmpty(result);
+  });
+
+  it('Finds known barcodes', async () => {
+    const result = await artDealer.getPerceptionResults({
+      markers: [
+        { type: 'qrcode', value: 'Barcode1' },
+        { type: 'qrcode', value: 'Barcode2' },
+        { type: 'qrcode', value: 'Barcode3' },
+        { type: 'qrcode', value: 'Barcode4' },
+        { type: 'qrcode', value: 'Barcode5' },
+      ]
+    });
+    assert.isArray(result);
+    assert.lengthOf(result, 5);
+  });
+
+  it('Predicts all detectableImages', async () => {
+    const result = await artDealer.predictPerceptionTargets({});
+    assert.isArray(result.detectableImages);
+    assert.lengthOf(result.detectableImages, 3);
+  });
+
+  it('Finds known images', async () => {
+    const result = await artDealer.getPerceptionResults({
+      images: [
+        { id: 'Id1' },
+        { id: 'Id2' },
+        { id: 'Id3' },
+      ]
+    });
+    assert.isArray(result);
+    assert.lengthOf(result, 3);
+  });
+
+  it('Ignores geolocation', async () => {
+    const result = await artDealer.getPerceptionResults({ geo: {} });
+    assert.isArray(result);
+    assert.isEmpty(result);
+  });
+
+  it('Multiple stores all supply results', async () => {
+    const otherStore = new LocalArtifactStore();
+    artDealer.addArtifactStore(otherStore);
+
+    otherStore.addArtifact({
+      arTarget: { '@type': 'Barcode', 'text': 'OtherBarcode' },
+      arContent: ''
+    });
+    otherStore.addArtifact({
+      arTarget: {
+        '@type': 'ARImageTarget',
+        'name': 'OtherImage',
+        'image': ''
+      },
+      arContent: ''
+    });
+
+    const result = await artDealer.getPerceptionResults({
+      markers: [
+        { type: 'qrcode', value: 'Barcode1' },
+        { type: 'qrcode', value: 'OtherBarcode' }
+      ],
+      images: [
+        { id: 'Id1' },
+        { id: 'OtherImage' },
+      ]
+    });
+    assert.isArray(result);
+    assert.lengthOf(result, 4);
+  });
+
+  it('Unimplemented stores are ignored', async () => {
+    const otherStore = {} as ArtifactStore;
+    artDealer.addArtifactStore(otherStore);
+
+    const result = await artDealer.getPerceptionResults({
+      markers: [
+        { type: 'qrcode', value: 'Barcode1' },
+      ],
+      images: [
+        { id: 'Id1' },
+      ]
+    });
+    assert.isArray(result);
+    assert.lengthOf(result, 2);
   });
 });
