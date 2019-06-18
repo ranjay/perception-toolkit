@@ -142,7 +142,7 @@ describe('ArtifactLoader', () => {
   });
 
   it('discovers artifacts from HTML pages, by URL', async () => {
-    const url = new URL('/base/test-assets/test1.html', window.location.href);
+    const url = new URL('/base/test-assets/test-barcode.html', window.location.href);
     const artifacts = await artLoader.fromHtmlUrl(url);
     assert.isArray(artifacts);
     assert.lengthOf(artifacts, 1);
@@ -163,7 +163,7 @@ describe('ArtifactLoader', () => {
   });
 
   it('discovers artifacts from HTML pages, using URLs of unknown content type', async () => {
-    const url = new URL('/base/test-assets/test1.html', window.location.href);
+    const url = new URL('/base/test-assets/test-barcode.html', window.location.href);
     const artifacts = await artLoader.fromUrl(url);
     assert.isArray(artifacts);
     assert.lengthOf(artifacts, 1);
