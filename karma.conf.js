@@ -114,7 +114,8 @@ module.exports = function(config) {
     ],
 
     mime: {
-      'application/wasm': ['wasm']
+      'application/wasm': ['wasm'],
+      'application/ld+json': ['jsonld']
     },
 
     singleRun: !debug

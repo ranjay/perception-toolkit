@@ -122,4 +122,57 @@ describe('ArtifactLoader', () => {
     assert.isArray(result);
     assert.lengthOf(result, 2);
   });
+
+  it('handles bad HTML URLs', async () => {
+    const url = new URL('/bad.html', window.location.href);
+    try {
+      await artLoader.fromHtmlUrl(url);
+    } catch (e) {
+      assert.throws(() => { throw e; });
+    }
+  });
+
+  it('handles bad Json-ld URLs', async () => {
+    const url = new URL('/bad.jsonld', window.location.href);
+    try {
+      await artLoader.fromJsonUrl(url);
+    } catch (e) {
+      assert.throws(() => { throw e; });
+    }
+  });
+
+  it('discovers artifacts from HTML pages, by URL', async () => {
+    const url = new URL('/base/test-assets/test-barcode.html', window.location.href);
+    const artifacts = await artLoader.fromHtmlUrl(url);
+    assert.isArray(artifacts);
+    assert.lengthOf(artifacts, 1);
+  });
+
+  it('discovers artifacts from JSON-LD documents, by URL', async () => {
+    const url = new URL('/base/test-assets/test-json.jsonld', window.location.href);
+    const artifacts = await artLoader.fromJsonUrl(url);
+    assert.isArray(artifacts);
+    assert.lengthOf(artifacts, 1);
+  });
+
+  it.skip('discovers artifacts from HTML pages with external scripts, by URL', async () => {
+    const url = new URL('/base/test-assets/test-external-ld.html', window.location.href);
+    const artifacts = await artLoader.fromHtmlUrl(url);
+    assert.isArray(artifacts);
+    assert.lengthOf(artifacts, 2);
+  });
+
+  it('discovers artifacts from HTML pages, using URLs of unknown content type', async () => {
+    const url = new URL('/base/test-assets/test-barcode.html', window.location.href);
+    const artifacts = await artLoader.fromUrl(url);
+    assert.isArray(artifacts);
+    assert.lengthOf(artifacts, 1);
+  });
+
+  it('discovers artifacts from HTML pages, using URLs of unknown content type', async () => {
+    const url = new URL('/base/test-assets/test-json.jsonld', window.location.href);
+    const artifacts = await artLoader.fromUrl(url);
+    assert.isArray(artifacts);
+    assert.lengthOf(artifacts, 1);
+  });
 });

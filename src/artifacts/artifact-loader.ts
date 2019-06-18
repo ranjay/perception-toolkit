@@ -75,21 +75,37 @@ export class ArtifactLoader {
 
     const inlineScripts = el.querySelectorAll('script[type=\'application/ld+json\']:not([src])');
     for (const jsonldScript of inlineScripts) {
-      ret.push(this.fromJson(JSON.parse(jsonldScript.textContent || '')));
+      if (!jsonldScript.textContent) {
+        continue;
+      }
+      try {
+        const jsonld = JSON.parse(jsonldScript.textContent);
+        ret.push(this.fromJson(jsonld));
+      } catch (ex) {
+        // Ignore faulty jsonld
+      }
     }
 
     const externalScripts = el.querySelectorAll('script[type=\'application/ld+json\'][src]');
     for (const jsonldScript of externalScripts) {
-      const src = jsonldScript.getAttribute('src');
-      if (!src) { continue; }
-      ret.push(this.fromJsonUrl(new URL(src, /* base= */ url)));
+      const src = jsonldScript.getAttribute('src') as string; // querySelector ensures this is defined.
+      try {
+        const url2 = new URL(src, /* base= */ url);
+        ret.push(this.fromJsonUrl(url2));
+      } catch (ex) {
+        // Ignore malformed URLs
+      }
     }
 
     const jsonldLinks = el.querySelectorAll('link[rel=\'alternate\'][type=\'application/ld+json\'][href]');
     for (const jsonldLink of jsonldLinks) {
-      const href = jsonldLink.getAttribute('href');
-      if (!href) { continue; }
-      ret.push(this.fromJsonUrl(new URL(href, /* base= */ url)));
+      const href = jsonldLink.getAttribute('href') as string; // querySelector ensures this is defined.
+      try {
+        const url2 = new URL(href, /* base= */ url);
+        ret.push(this.fromJsonUrl(url2));
+      } catch (ex) {
+        // Ignore malformed URLs
+      }
     }
 
     return flat(await Promise.all(ret));
