@@ -147,6 +147,10 @@ describe('ArtifactDealer', () => {
       arContent: ''
     });
 
+    const predicted = await artDealer.predictPerceptionTargets({});
+    assert.isArray(predicted.detectableImages);
+    assert.lengthOf(predicted.detectableImages, 4);
+
     const result = await artDealer.getPerceptionResults({
       markers: [
         { type: 'qrcode', value: 'Barcode1' },
@@ -164,6 +168,10 @@ describe('ArtifactDealer', () => {
   it('Unimplemented stores are ignored', async () => {
     const otherStore = {} as ArtifactStore;
     artDealer.addArtifactStore(otherStore);
+
+    const predicted = await artDealer.predictPerceptionTargets({});
+    assert.isArray(predicted.detectableImages);
+    assert.lengthOf(predicted.detectableImages, 3);
 
     const result = await artDealer.getPerceptionResults({
       markers: [
