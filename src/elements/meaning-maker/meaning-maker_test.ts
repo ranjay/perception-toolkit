@@ -29,7 +29,7 @@ describe('Meaning Maker', () => {
   it('loads from URLs', async () => {
     const meaningMaker = await initMM();
 
-    const url = new URL('/base/test-assets/test1.html', window.location.href);
+    const url = new URL('/base/test-assets/test-barcode.html', window.location.href);
     const artifacts = await meaningMaker.loadArtifactsFromUrl(url);
     assert.equal(artifacts.length, 1);
   });
@@ -45,7 +45,7 @@ describe('Meaning Maker', () => {
   it('loads from supported origins', async () => {
     const meaningMaker = await initMM();
 
-    const url = new URL('/base/test-assets/test1.html', window.location.href);
+    const url = new URL('/base/test-assets/test-barcode.html', window.location.href);
     const artifacts =
         await meaningMaker.loadArtifactsFromSupportedUrl(url, (url: URL) => {
           return url.origin === window.origin;
@@ -56,7 +56,7 @@ describe('Meaning Maker', () => {
   it('loads from same-origin if unspecified', async () => {
     const meaningMaker = await initMM();
 
-    const url = new URL('/base/test-assets/test1.html', window.location.href);
+    const url = new URL('/base/test-assets/test-barcode.html', window.location.href);
     const artifacts = await meaningMaker.loadArtifactsFromSupportedUrl(url);
     assert.equal(artifacts.length, 1);
   });
@@ -64,7 +64,7 @@ describe('Meaning Maker', () => {
   it('ignores unsupported origins', async () => {
     const meaningMaker = await initMM();
 
-    const url = new URL('/base/test-assets/test1.html', window.location.href);
+    const url = new URL('/base/test-assets/test-barcode.html', window.location.href);
     const artifacts =
         await meaningMaker.loadArtifactsFromSupportedUrl(url, (url: URL) => {
           return false;
@@ -75,7 +75,7 @@ describe('Meaning Maker', () => {
   it('supports origins as strings', async () => {
     const meaningMaker = await initMM();
 
-    const url = new URL('/base/test-assets/test1.html', window.location.href);
+    const url = new URL('/base/test-assets/test-barcode.html', window.location.href);
     const artifacts = await meaningMaker.loadArtifactsFromSupportedUrl(url,
       [window.location.origin]);
     assert.equal(artifacts.length, 1);
@@ -93,10 +93,13 @@ describe('Meaning Maker', () => {
 
   it('finds and loses markers', async () => {
     const meaningMaker = await initMM();
-    const url = new URL('/base/test-assets/test1.html', window.location.href);
+    const url = new URL('/base/test-assets/test-barcode.html', window.location.href);
+    const artifacts = await meaningMaker.loadArtifactsFromUrl(url);
+    assert.lengthOf(artifacts, 1);
+
     const marker = {
       type: 'qr_code',
-      value: url.href
+      value: '1234567890'
     };
 
     const foundResponse = await meaningMaker.markerFound(marker);
@@ -113,6 +116,8 @@ describe('Meaning Maker', () => {
     const meaningMaker = await initMM();
     const url = new URL('/base/test-assets/test-image.html', window.location.href);
     await meaningMaker.loadArtifactsFromUrl(url);
+    const artifacts = await meaningMaker.loadArtifactsFromUrl(url);
+    assert.lengthOf(artifacts, 1);
 
     const detectedImage = {
       id: 'Lighthouse'
@@ -128,6 +133,29 @@ describe('Meaning Maker', () => {
     assert.equal(loseRespones.lost.length, 1);
   });
 
+  it.skip('loads markers dynamically', async () => {
+    const meaningMaker = await initMM();
+    const url = new URL('/base/test-assets/test-dynamic.html', window.location.href);
+    // TODO: The following fails sometimes
+    assert.equal(url.port, '9876');
+
+    // Do not load artifact first.
+
+    const marker = {
+      type: 'qr_code',
+      value: url.href
+    };
+
+    const foundResponse = await meaningMaker.markerFound(marker);
+    assert.isDefined(foundResponse);
+    assert.equal(foundResponse.found.length, 1);
+    assert.equal(foundResponse.lost.length, 0);
+
+    const loseRespones = await meaningMaker.markerLost(marker);
+    assert.equal(loseRespones.found.length, 0);
+    assert.equal(loseRespones.lost.length, 1);
+  });
+
   it('accepts updated locations without any geofenced artifacts', async () => {
     // Location updates do not change results.
     const meaningMaker = await initMM();
@@ -136,12 +164,13 @@ describe('Meaning Maker', () => {
       longitude: 1
     };
 
-    const url = new URL('/base/test-assets/test1.html', window.location.href);
-    await meaningMaker.loadArtifactsFromUrl(url);
+    const url = new URL('/base/test-assets/test-barcode.html', window.location.href);
+    const artifacts = await meaningMaker.loadArtifactsFromUrl(url);
+    assert.lengthOf(artifacts, 1);
 
     const marker = {
       type: 'qr_code',
-      value: url.href
+      value: '1234567890'
     };
 
     // Add the marker.

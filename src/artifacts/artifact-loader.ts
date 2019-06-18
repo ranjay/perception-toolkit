@@ -15,10 +15,10 @@
  * limitations under the License.
  */
 
+import { flat } from '../utils/flat.js';
 import { ArtifactDecoder } from './artifact-decoder.js';
 import { ARArtifact } from './schema/extension-ar-artifacts.js';
 import { JsonLd } from './schema/json-ld.js';
-import { flat } from '../utils/flat.js';
 
 // TODO: Consider merging from*Url functions and just branching on response content-type
 export class ArtifactLoader {
@@ -27,7 +27,7 @@ export class ArtifactLoader {
   async fromUrl(url: URL|string): Promise<ARArtifact[]> {
     const response = await fetch(url.toString());
     if (!response.ok) {
-        throw Error(response.statusText);
+        throw Error(`Fetch failure for ${url} with status: ${response.statusText}`);
     }
     const contentType = response.headers.get('content-type');
     if (!contentType) {
@@ -53,7 +53,7 @@ export class ArtifactLoader {
 
     const response = await fetch(url.toString());
     if (!response.ok) {
-        throw Error(response.statusText);
+        throw Error(`Fetch failure for ${url} with status: ${response.statusText}`);
     }
     const html = await response.text();
     const parser = new DOMParser();
@@ -64,13 +64,13 @@ export class ArtifactLoader {
   async fromJsonUrl(url: URL|string): Promise<ARArtifact[]> {
     const response = await fetch(url.toString());
     if (!response.ok) {
-        throw Error(response.statusText);
+        throw Error(`Fetch failure for ${url} with status: ${response.statusText}`);
     }
     const json = await response.json();
     return this.fromJson(json);
   }
 
-  async fromElement(el: NodeSelector, url: URL|string): Promise<ARArtifact[]> {
+  async fromElement(el: ParentNode, url: URL|string): Promise<ARArtifact[]> {
     const ret = [];
 
     const inlineScripts = el.querySelectorAll('script[type=\'application/ld+json\']:not([src])');
