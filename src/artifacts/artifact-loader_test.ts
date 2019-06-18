@@ -122,4 +122,32 @@ describe('ArtifactLoader', () => {
     assert.isArray(result);
     assert.lengthOf(result, 2);
   });
+
+  it('discovers artifacts from HTML pages, by URL', async () => {
+    const url = new URL('/base/test-assets/test1.html', window.location.href);
+    const artifacts = await artLoader.fromHtmlUrl(url);
+    assert.isArray(artifacts);
+    assert.lengthOf(artifacts, 1);
+  });
+
+  it('discovers artifacts from JSON-LD documents, by URL', async () => {
+    const url = new URL('/base/test-assets/test-json.jsonld', window.location.href);
+    const artifacts = await artLoader.fromJsonUrl(url);
+    assert.isArray(artifacts);
+    assert.lengthOf(artifacts, 1);
+  });
+
+  it('discovers artifacts from HTML pages, using URLs of unknown content type', async () => {
+    const url = new URL('/base/test-assets/dow.location.href');
+    const artifacts = await artLoader.fromUrl(url);
+    assert.isArray(artifacts);
+    assert.lengthOf(artifacts, 1);
+  });
+  
+  it('discovers artifacts from HTML pages, using URLs of unknown content type', async () => {
+    const url = new URL('/base/test-assets/test-json.jsonld', window.location.href);
+    const artifacts = await artLoader.fromUrl(url);
+    assert.isArray(artifacts);
+    assert.lengthOf(artifacts, 1);
+  });
 });
