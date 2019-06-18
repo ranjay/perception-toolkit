@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-const debug = false;
+const debug = process.env.RAPID || false;
 
 module.exports = function(config) {
   const options = {
