@@ -19,10 +19,24 @@
 import { DetectableImage, DetectedImage } from '../../../defs/detected-image.js';
 import { DEBUG_LEVEL, log } from '../../utils/logger.js';
 
+interface OutgoingWorkerMessage {
+  type: string;
+  data?: any;
+  id?: string;
+}
+
+interface AddCallbackVals {
+  idx: number;
+  id: string;
+}
+
+type ProcessCallbackValue = null | number[];
+
 class Detector {
-  private readonly targets = new Map<number, { id: string }>();
+  private readonly targets = new Map<number, DetectedImage>();
   private isReadyInternal: Promise<void>;
   private worker!: Worker;
+  private workerMessageCallbacks = new Map<string, (data: any) => void>();
 
   constructor(root = '') {
     this.isReadyInternal = new Promise((resolve) => {
@@ -31,7 +45,18 @@ class Detector {
         /* istanbul ignore if */
         if (e.data === 'ready') {
           resolve();
+          return;
         }
+
+        const { msgId, data } = e.data;
+        log(`Message (id: ${msgId}) from worker.`, DEBUG_LEVEL.VERBOSE);
+        const callback = this.workerMessageCallbacks.get(msgId);
+        if (!callback) {
+          return;
+        }
+
+        this.workerMessageCallbacks.delete(msgId);
+        callback.apply(undefined, [data]);
       };
 
       this.worker.postMessage(root);
@@ -52,14 +77,13 @@ class Detector {
 
     return new Promise((resolve) => {
       const startTime = performance.now();
-      this.worker.postMessage({ type: 'process', data });
-      this.worker.onmessage = (e) => {
+      this.send({ type: 'process', data }, (processData: ProcessCallbackValue) => {
         /* istanbul ignore if */
-        if (e.data === null) {
+        if (processData === null) {
           return [];
         }
 
-        const matches = e.data as number[];
+        const matches = processData as number[];
 
         // Remap to actual DetectedImage targets (and filter out empties).
         const detectedImages = matches.map((id) => this.targets.get(id))
@@ -68,7 +92,7 @@ class Detector {
         resolve(detectedImages);
         log(`Time taken (ms): ${performance.now() - startTime} ` +
             `for ${data.width} * ${data.height}`, DEBUG_LEVEL.VERBOSE);
-      };
+      });
     });
   }
 
@@ -82,24 +106,22 @@ class Detector {
 
   addTarget(data: Uint8Array, image: DetectableImage): Promise<number> {
     return new Promise((resolve) => {
-      this.worker.postMessage({ type: 'add', data, id: image.id });
-      this.worker.onmessage = (e) => {
-        const { idx, id } = e.data;
+      this.send({ type: 'add', data, id: image.id }, (addData: AddCallbackVals) => {
+        const { idx, id } = addData;
         this.targets.set(idx as number, { id });
         log(`Target stored: ${id}, number ${idx}`, DEBUG_LEVEL.VERBOSE);
         resolve(idx);
-      };
+      });
     });
   }
 
   removeTarget(data: number): Promise<void> {
     return new Promise((resolve) => {
-      this.worker.postMessage({ type: 'remove', data });
-      this.worker.onmessage = (e) => {
-        this.targets.delete(e.data as number);
-        log(`Target removed: number ${e.data}`, DEBUG_LEVEL.VERBOSE);
+      this.send({ type: 'remove', data }, (removeData: number) => {
+        this.targets.delete(removeData);
+        log(`Target removed: number ${data}`, DEBUG_LEVEL.VERBOSE);
         resolve();
-      };
+      });
     });
   }
 
@@ -110,12 +132,27 @@ class Detector {
 
     this.targets.clear();
     return new Promise((resolve) => {
-      this.worker.postMessage({ type: 'reset' });
-      this.worker.onmessage = (e) => {
+      this.send({ type: 'reset' }, () => {
         log(`Image detector reset`, DEBUG_LEVEL.VERBOSE);
         resolve();
-      };
+      });
     });
+  }
+
+  private send(msg: OutgoingWorkerMessage, callback: (data: any) => void) {
+    const makeRandId = () => {
+      // Array of zeros.
+      return new Array(16).fill(0)
+          // Remapped to random alphanumeric values.
+          .map(() => String.fromCharCode(97 + (Math.random() * 26) | 0))
+          // Joined together.
+          .join('');
+    };
+
+    const msgId = makeRandId();
+    log(`Message (id: ${msgId}, type: ${msg.type}) to worker.`, DEBUG_LEVEL.VERBOSE);
+    this.workerMessageCallbacks.set(msgId, callback);
+    this.worker.postMessage({...msg, msgId});
   }
 }
 
