@@ -1,0 +1,11 @@
+{
+  "@context": "https://schema.googleapis.com",
+  "@type": "ARArtifact",
+  "arTarget": [{
+    "@type": "Barcode",
+    "text": "1234567890"
+  }],
+  "arContent": {
+    "@type": "WebPage"
+  }
+}
