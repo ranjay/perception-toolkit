@@ -43,7 +43,7 @@ export class ArtifactDealer {
   async getPerceptionResults(context: PerceptionState): Promise<PerceptionResult[]> {
     // Set default property values to empty lists, since they are optional.
     // Do this because context may be passed to custom artstores (written in JS) which expect them defined.
-    context = Object.assign({ markers: [], geo: [], images: [] }, context);
+    context = { markers: [], geo: [], images: [], ...context };
 
     // Using current context (geo, markers), ask artstores to compute relevant artifacts
     const allStoreResults = await Promise.all(this.artstores.map((artstore) => {

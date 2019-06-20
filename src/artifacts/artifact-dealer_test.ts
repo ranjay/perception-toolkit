@@ -165,7 +165,7 @@ describe('ArtifactDealer', () => {
     assert.lengthOf(result, 4);
   });
 
-  it('Unimplemented stores are ignored', async () => {
+  it('unimplemented stores are ignored', async () => {
     const otherStore = {} as ArtifactStore;
     artDealer.addArtifactStore(otherStore);
 

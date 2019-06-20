@@ -75,13 +75,20 @@ export class MeaningMaker {
   }
 
   /**
-   * Get/Set the amount of time (in ms) to wait after a target is last seen (i.e. included in `PerceptionState`
-   * argument of `updatePerceptionState`), will it actually be considered lost.
+   * Sets the amount of time (in ms) to wait after a target is last seen, before it is actually reported as lost.
    *
-   * This is used so we do not spuriously lose/find targets whenever they are not detected in a few frame captures.
+   * This is used so we do not spuriously lose/find targets just because they are not detected in a few frame captures.
    */
-  get lastSeenTimeBuffer()           { return this._lastSeenTimeBuffer; }
-  set lastSeenTimeBuffer(ms: number) { this._lastSeenTimeBuffer = ms; }
+  set lastSeenTimeBuffer(ms: number) {
+    this._lastSeenTimeBuffer = ms;
+  }
+
+  /**
+   * Gets the amount of time (in ms) to wait after a target is last seen, before it is actually reported as lost.
+   */
+  get lastSeenTimeBuffer() {
+    return this._lastSeenTimeBuffer;
+  }
 
   /**
    * Add another ArtifactStore to the ArtifactDealer.
@@ -137,28 +144,50 @@ export class MeaningMaker {
    * It is up to the caller to select the correct media encoding.
    */
   async updatePerceptionState(request: PerceptionStateChangeRequest): Promise<PerceptionStateChangeResponse>  {
-    const newTargets = [];
-
-    // First, update lastSeen times for all the targets.  Keep track of new targets.
     const now = performance.now();
+    const newTargets = this.updateLastSeenTimes(request, now);
+    this.removeStaleTargets(now);
+
+    await this.tryIndexUrlMarkers(request);
+
+    return {
+      newTargets,
+      ...await this.computeLostFoundResults(request),
+      ...await this.artdealer.predictPerceptionTargets(request)
+    };
+  }
+
+  /**
+   * Update lastSeen times for all targets which have been reported to be seen again.
+   * Returns the list of brand new targets.
+   */
+  private updateLastSeenTimes(request: PerceptionStateChangeRequest, timestamp: number) {
+    const firstSeenTargets = [];
+
     for (const marker of request.markers || []) {
       const markerId = generateMarkerId(marker);
       if (!this.lastSeenMarkers.has(markerId)) {
-        newTargets.push(marker);
+        firstSeenTargets.push(marker);
       }
-      this.lastSeenMarkers.set(markerId, { marker, timestamp: now });
+      this.lastSeenMarkers.set(markerId, { marker, timestamp });
     }
     for (const image of request.images || []) {
       const imageId = image.id;
       if (!this.lastSeenMarkers.has(imageId)) {
-        newTargets.push(image);
+        firstSeenTargets.push(image);
       }
-      this.lastSeenImages.set(imageId, { image, timestamp: now });
+      this.lastSeenImages.set(imageId, { image, timestamp });
     }
 
-    // Now, remove all the target that we haven't seen for a while
+    return firstSeenTargets;
+  }
+
+  /**
+   * Remove all targets which we haven't seen for a while (as per lastSeenTimeBuffer).
+   */
+  private removeStaleTargets(now: number) {
     for (const [markerId, { timestamp }] of this.lastSeenMarkers.entries()) {
-      if (now - timestamp > this._lastSeenTimeBuffer) {
+      if (now - timestamp > this.lastSeenTimeBuffer) {
         this.lastSeenMarkers.delete(markerId);
       }
     }
@@ -167,11 +196,41 @@ export class MeaningMaker {
         this.lastSeenImages.delete(imageId);
       }
     }
+  }
 
+  /*
+   * Check if markers are valid URLs, and then try loading artifacts from those URLs, if it is appropriate to do so.
+   *
+   * `shouldLoadArtifactsFrom` is called if marker is a URL value, to decide if it is appropriate.
+   * If `true`, MeaningMaker will index that URL and extract store its Artifacts.
+   *
+   * returns `NearbyResultDelta` which can be used to update UI.
+   */
+  private async tryIndexUrlMarkers(request: PerceptionStateChangeRequest) {
     // Check if markers are URLs worth indexing
-    await Promise.all((request.markers || [])
-        .map((marker) => this.checkMarkerIsDynamic(marker, request.shouldLoadArtifactsFrom)));
+    const tasks = [];
+    for (const marker of request.markers || []) {
+      try {
+        // Attempt to convert markerValue to URL.  This will throw if markerValue isn't a valid URL.
+        // Do not supply a base url argument, since we do not want to support relative URLs,
+        // and because that would turn lots of normal string values into valid relative URLs.
+        const url = new URL(marker.value);
+        tasks.push(this.loadArtifactsFromSupportedUrl(url, request.shouldLoadArtifactsFrom));
+      } catch (_) {
+        // Do nothing if this isn't a valid URL
+      }
+    }
+    return Promise.all(tasks);
+  }
 
+  /**
+   * Based on the current nearby targets (which were already buffered with lastSeenTimeBuffer) compute the set of
+   * Lost and Found results compared to the last time we reported.
+   * 
+   * ArtifactDealer always returns the full set of results for a given context, so this maintains previous state and
+   * computes a diff.
+   */
+  private async computeLostFoundResults(request: PerceptionStateChangeRequest) {
     // Perception state includes all the markers/images we have seen recently.
     const state: PerceptionState = {
       markers: Array.from(this.lastSeenMarkers.values(), ({ marker }) => marker),
@@ -192,34 +251,7 @@ export class MeaningMaker {
     // Update current set of nearbyResults.
     this.prevPerceptionResults = uniqueNearbyResults;
 
-    const ret: PerceptionStateChangeResponse = {
-      found,
-      lost,
-      newTargets,
-      ...await this.artdealer.predictPerceptionTargets(request)
-    };
-
-    return ret;
-  }
-
-  /*
-   * If this marker is a URL, try loading artifacts from that URL
-   *
-   * `shouldLoadArtifactsFrom` is called if marker is a URL value.  If it returns `true`, MeaningMaker will index that
-   * URL and extract Artifacts, if it has not already done so.
-   *
-   * returns `NearbyResultDelta` which can be used to update UI.
-   */
-  private async checkMarkerIsDynamic(marker: Marker, shouldLoadArtifactsFrom?: ShouldLoadArtifactsFromCallback) {
-    try {
-      // Attempt to convert markerValue to URL.  This will throw if markerValue isn't a valid URL.
-      // Do not supply a base url argument, since we do not want to support relative URLs,
-      // and because that would turn lots of normal string values into valid relative URLs.
-      const url = new URL(marker.value);
-      await this.loadArtifactsFromSupportedUrl(url, shouldLoadArtifactsFrom);
-    } catch (_) {
-      // Do nothing if this isn't a valid URL
-    }
+    return { lost, found };
   }
 
   private saveArtifacts(artifacts: ARArtifact[]) {

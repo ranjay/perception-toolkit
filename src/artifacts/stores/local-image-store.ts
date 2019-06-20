@@ -35,7 +35,7 @@ export class LocalImageStore {
   getDetectableImages(): DetectableImage[] {
     const allDetectableImages: DetectableImage[] = [];
 
-    for (const { target: target } of this.images.values()) {
+    for (const { target } of this.images.values()) {
       if (!typeIsThing(target) || target['@type'] !== 'ARImageTarget' || !target.name) {
         continue;
       }

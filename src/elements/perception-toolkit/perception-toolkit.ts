@@ -90,7 +90,7 @@ export class PerceptionToolkit extends HTMLElement {
   private readonly onMarkerFoundBound = this.onMarkerFound.bind(this);
   private readonly onCaptureFrameBound = this.onCaptureFrame.bind(this);
   private readonly onCloseBound = this.onClose.bind(this);
-  private readonly startupDetections: Array<Promise<any[]>> = [];
+  private readonly startupDetections: Array<Promise<object[]>> = [];
   private readonly detectorsToUse = {
     barcode: true,
     image: false
