@@ -107,6 +107,7 @@ export class MeaningMaker {
     if (this.artifactsForUrl.has(url.toString())) {
       return this.artifactsForUrl.get(url.toString()) as ARArtifact[];
     }
+
     const artifacts = await this.artloader.fromUrl(url);
     this.saveArtifacts(artifacts);
     this.artifactsForUrl.set(url.toString(), artifacts);

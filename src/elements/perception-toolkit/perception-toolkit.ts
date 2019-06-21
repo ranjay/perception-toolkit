@@ -90,7 +90,7 @@ export class PerceptionToolkit extends HTMLElement {
   private readonly onMarkerFoundBound = this.onMarkerFound.bind(this);
   private readonly onCaptureFrameBound = this.onCaptureFrame.bind(this);
   private readonly onCloseBound = this.onClose.bind(this);
-  private readonly startupDetections: Array<Promise<object[]>> = [];
+  private readonly startupDetections: Array<Promise<Array<{}>>> = [];
   private readonly detectorsToUse = {
     barcode: true,
     image: false
@@ -499,8 +499,7 @@ export class PerceptionToolkit extends HTMLElement {
 
   private handleUnknownItems(targets: Marker[]) {
     if (!cardContainer ||  // No card container.
-        !acknowledgeUnknownItems // The config says to ignore unknowns.
-    ) {
+        !acknowledgeUnknownItems) {// The config says to ignore unknowns.
       return;
     }
 
