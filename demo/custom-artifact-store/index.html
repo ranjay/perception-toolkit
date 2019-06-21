@@ -110,9 +110,9 @@
        * return results if it matches one of the three defined above (`Artifacts` global).
        * 
        */
-      async findRelevantArtifacts(nearbyMarkers, geo, detectedImages) {
+      async findRelevantArtifacts({ markers, geo, images }) {
         const ret = [];
-        for (const marker of nearbyMarkers) {
+        for (const marker of markers) {
           for (const artifact of Artifacts) {
             // If this nearby markers' text matches one of our expected targets, return the artifact.
             if (marker.value === artifact.arTarget.text) {

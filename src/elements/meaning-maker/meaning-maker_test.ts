@@ -22,6 +22,7 @@ import { MeaningMaker } from './meaning-maker.js';
 async function initMM() {
   const meaningMaker = new MeaningMaker();
   await meaningMaker.init();
+  meaningMaker.lastSeenTimeBuffer = 0;
   return meaningMaker;
 }
 
@@ -31,15 +32,18 @@ describe('Meaning Maker', () => {
 
     const url = new URL('/base/test-assets/test-barcode.html', window.location.href);
     const artifacts = await meaningMaker.loadArtifactsFromUrl(url);
-    assert.equal(artifacts.length, 1);
+    assert.lengthOf(artifacts, 1);
   });
 
   it('handles bad loads from URLs', async () => {
     const meaningMaker = await initMM();
-
-    const url = new URL('bad-url.html', window.location.href);
-    const artifacts = await meaningMaker.loadArtifactsFromUrl(url);
-    assert.equal(artifacts.length, 0);
+    try {
+      await meaningMaker.loadArtifactsFromUrl(new URL('bad-url.html', window.location.href));
+    } catch (err) {
+      // This is a workaround sync assert.throws() doesn't handle async yet.
+      // See: https://github.com/chaijs/chai/issues/415
+      assert.throws(() => { throw err; });
+    }
   });
 
   it('loads from supported origins', async () => {
@@ -50,7 +54,7 @@ describe('Meaning Maker', () => {
         await meaningMaker.loadArtifactsFromSupportedUrl(url, (url: URL) => {
           return url.origin === window.origin;
         });
-    assert.equal(artifacts.length, 1);
+    assert.lengthOf(artifacts, 1);
   });
 
   it('loads from same-origin if unspecified', async () => {
@@ -58,7 +62,7 @@ describe('Meaning Maker', () => {
 
     const url = new URL('/base/test-assets/test-barcode.html', window.location.href);
     const artifacts = await meaningMaker.loadArtifactsFromSupportedUrl(url);
-    assert.equal(artifacts.length, 1);
+    assert.lengthOf(artifacts, 1);
   });
 
   it('ignores unsupported origins', async () => {
@@ -69,7 +73,7 @@ describe('Meaning Maker', () => {
         await meaningMaker.loadArtifactsFromSupportedUrl(url, (url: URL) => {
           return false;
         });
-    assert.equal(artifacts.length, 0);
+    assert.lengthOf(artifacts, 0);
   });
 
   it('supports origins as strings', async () => {
@@ -78,7 +82,7 @@ describe('Meaning Maker', () => {
     const url = new URL('/base/test-assets/test-barcode.html', window.location.href);
     const artifacts = await meaningMaker.loadArtifactsFromSupportedUrl(url,
       [window.location.origin]);
-    assert.equal(artifacts.length, 1);
+    assert.lengthOf(artifacts, 1);
   });
 
   it('returns all Image Targets as detectableImages', async () => {
@@ -86,9 +90,9 @@ describe('Meaning Maker', () => {
 
     const url = new URL('/base/test-assets/test-image.html', window.location.href);
     const artifacts = await meaningMaker.loadArtifactsFromSupportedUrl(url);
-    const images = await meaningMaker.getDetectableImages();
-    assert.equal(artifacts.length, 1, 'No artifacts');
-    assert.equal(images.length, 1, 'No image artifacts');
+    const images = (await meaningMaker.updatePerceptionState({})).detectableImages;
+    assert.lengthOf(artifacts, 1, 'No artifacts');
+    assert.lengthOf(images, 1, 'No image artifacts');
   });
 
   it('finds and loses markers', async () => {
@@ -102,14 +106,14 @@ describe('Meaning Maker', () => {
       value: '1234567890'
     };
 
-    const foundResponse = await meaningMaker.markerFound(marker);
+    const foundResponse = await meaningMaker.updatePerceptionState({ markers: [ marker ] });
     assert.isDefined(foundResponse);
-    assert.equal(foundResponse.found.length, 1);
-    assert.equal(foundResponse.lost.length, 0);
+    assert.lengthOf(foundResponse.found, 1);
+    assert.lengthOf(foundResponse.lost, 0);
 
-    const loseRespones = await meaningMaker.markerLost(marker);
-    assert.equal(loseRespones.found.length, 0);
-    assert.equal(loseRespones.lost.length, 1);
+    const lostResponse = await meaningMaker.updatePerceptionState({});
+    assert.lengthOf(lostResponse.found, 0);
+    assert.lengthOf(lostResponse.lost, 1);
   });
 
   it('finds and loses images', async () => {
@@ -123,14 +127,14 @@ describe('Meaning Maker', () => {
       id: 'Lighthouse'
     };
 
-    const foundResponse = await meaningMaker.imageFound(detectedImage);
+    const foundResponse = await meaningMaker.updatePerceptionState({ images: [ detectedImage ] });
     assert.isDefined(foundResponse);
-    assert.equal(foundResponse.found.length, 1);
-    assert.equal(foundResponse.lost.length, 0);
+    assert.lengthOf(foundResponse.found, 1);
+    assert.lengthOf(foundResponse.lost, 0);
 
-    const loseRespones = await meaningMaker.imageLost(detectedImage);
-    assert.equal(loseRespones.found.length, 0);
-    assert.equal(loseRespones.lost.length, 1);
+    const lostResponse = await meaningMaker.updatePerceptionState({});
+    assert.lengthOf(lostResponse.found, 0);
+    assert.lengthOf(lostResponse.lost, 1);
   });
 
   it.skip('loads markers dynamically', async () => {
@@ -146,12 +150,12 @@ describe('Meaning Maker', () => {
       value: url.href
     };
 
-    const foundResponse = await meaningMaker.markerFound(marker);
+    const foundResponse = await meaningMaker.updatePerceptionState({ markers: [ marker ] });
     assert.isDefined(foundResponse);
     assert.equal(foundResponse.found.length, 1);
     assert.equal(foundResponse.lost.length, 0);
 
-    const loseRespones = await meaningMaker.markerLost(marker);
+    const loseRespones = await meaningMaker.updatePerceptionState({});
     assert.equal(loseRespones.found.length, 0);
     assert.equal(loseRespones.lost.length, 1);
   });
@@ -159,11 +163,6 @@ describe('Meaning Maker', () => {
   it('accepts updated locations without any geofenced artifacts', async () => {
     // Location updates do not change results.
     const meaningMaker = await initMM();
-    const location = {
-      latitude: 1,
-      longitude: 1
-    };
-
     const url = new URL('/base/test-assets/test-barcode.html', window.location.href);
     const artifacts = await meaningMaker.loadArtifactsFromUrl(url);
     assert.lengthOf(artifacts, 1);
@@ -172,17 +171,21 @@ describe('Meaning Maker', () => {
       type: 'qr_code',
       value: '1234567890'
     };
+    const geo = {
+      latitude: 1,
+      longitude: 1
+    };
 
     // Add the marker.
-    const foundResponse = await meaningMaker.markerFound(marker);
+    const foundResponse = await meaningMaker.updatePerceptionState({ markers: [ marker ] });
     assert.isDefined(foundResponse);
-    assert.equal(foundResponse.found.length, 1);
-    assert.equal(foundResponse.lost.length, 0);
+    assert.lengthOf(foundResponse.found, 1);
+    assert.lengthOf(foundResponse.lost, 0);
 
-    // Filter it out with location.
-    const locationResponse = await meaningMaker.updateGeolocation(location);
+    // Add the marker, alongside geo change
+    const locationResponse = await meaningMaker.updatePerceptionState({ markers: [ marker ], geo });
     assert.isDefined(locationResponse);
-    assert.equal(locationResponse.found.length, 0);
-    assert.equal(locationResponse.lost.length, 0);
+    assert.lengthOf(locationResponse.found, 0);
+    assert.lengthOf(locationResponse.lost, 0);
   });
 });

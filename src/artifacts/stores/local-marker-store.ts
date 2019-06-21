@@ -16,12 +16,12 @@
  */
 
 import { Marker } from '../../../defs/marker.js';
-import { NearbyResult } from '../artifact-dealer.js';
-import { ARArtifact } from '../schema/extension-ar-artifacts.js';
 import { Barcode } from '../schema/core-schema-org.js';
+import { ARArtifact } from '../schema/extension-ar-artifacts.js';
+import { PerceptionResult } from './artifact-store.js';
 
 export class LocalMarkerStore {
-  private readonly markers = new Map<string, NearbyResult>();
+  private readonly markers = new Map<string, PerceptionResult>();
 
   addMarker(artifact: ARArtifact, barcode: Barcode): boolean {
     if (!barcode.text) {
@@ -31,7 +31,7 @@ export class LocalMarkerStore {
     return true;
   }
 
-  findRelevantArtifacts(markers: Marker[]): NearbyResult[] {
+  findRelevantArtifacts(markers: Marker[]): PerceptionResult[] {
     const ret = [];
     for (const marker of markers) {
       const nearbyResult = this.markers.get(marker.value);

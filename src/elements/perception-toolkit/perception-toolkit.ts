@@ -24,7 +24,7 @@ import {
   PerceptionToolkitEvents,
   PerceptionToolkitFunctions,
 } from '../../../perception-toolkit/defs.js';
-import { NearbyResult, NearbyResultDelta } from '../../artifacts/artifact-dealer.js';
+import { ProbableTargets } from '../../artifacts/artifact-dealer.js';
 import { ArtifactStore } from '../../artifacts/stores/artifact-store.js';
 import { detectBarcodes } from '../../detectors/marker/barcode.js';
 import { addDetectionTarget, detectPlanarImages, getTarget, reset } from '../../detectors/planar-image/planar-image.js';
@@ -38,10 +38,11 @@ import { vibrate } from '../../utils/vibrate.js';
 import { ActionButton } from '../action-button/action-button.js';
 import { Card, CardData } from '../card/card.js';
 import { DotLoader } from '../dot-loader/dot-loader.js';
-import { MeaningMaker } from '../meaning-maker/meaning-maker.js';
+import { MeaningMaker, PerceptionStateChangeResponse } from '../meaning-maker/meaning-maker.js';
 import { OnboardingCard } from '../onboarding-card/onboarding-card.js';
 import { hideOverlay, showOverlay } from '../overlay/overlay.js';
 import { StreamCapture } from '../stream-capture/stream-capture.js';
+import { DetectedImage } from '../../../defs/detected-image.js';
 
 window.PerceptionToolkit = window.PerceptionToolkit || {
   Elements: {} as PerceptionToolkitElements,
@@ -85,12 +86,11 @@ export class PerceptionToolkit extends HTMLElement {
 
   private readonly root = this.attachShadow({ mode: 'open' });
   private readonly meaningMaker = new MeaningMaker();
-  private readonly detectedTargets = new Map<{type: string, value: string}, number>();
   private readonly onVisibilityChangeBound = this.onVisibilityChange.bind(this);
   private readonly onMarkerFoundBound = this.onMarkerFound.bind(this);
   private readonly onCaptureFrameBound = this.onCaptureFrame.bind(this);
   private readonly onCloseBound = this.onClose.bind(this);
-  private readonly startupDetections: Array<Promise<Marker[]>> = [];
+  private readonly startupDetections: Array<Promise<Array<{}>>> = [];
   private readonly detectorsToUse = {
     barcode: true,
     image: false
@@ -142,9 +142,6 @@ export class PerceptionToolkit extends HTMLElement {
     this.capture.classList.remove('active');
     this.capture.stop();
 
-    // Clear any markers.
-    this.detectedTargets.clear();
-
     unobserveConnectivityChanges();
     hideOverlay();
     clearTimeout(this.hintTimeoutId);
@@ -174,38 +171,6 @@ export class PerceptionToolkit extends HTMLElement {
     this.removeEventListener(captureFrame, this.onCaptureFrameBound);
     this.removeEventListener(captureClosed, this.onCloseBound);
     this.removeEventListener(markerDetect, this.onMarkerFoundBound);
-  }
-
-  private async purgeOldMarkers() {
-    const now = self.performance.now();
-    const removals = [];
-    for (const [marker, timeLastSeen] of this.detectedTargets.entries()) {
-      // Any targets seen in the last second should remain.
-      if (now - timeLastSeen < 1000) {
-        continue;
-      }
-
-      // All others need removing.
-      switch (marker.type) {
-        case 'ARImageTarget':
-          const image = await getTarget(marker.value);
-          if (!image) {
-            break;
-          }
-
-          removals.push(this.meaningMaker.imageLost(image));
-          break;
-
-        default:
-          removals.push(this.meaningMaker.markerLost(marker));
-          break;
-      }
-
-      this.detectedTargets.delete(marker);
-    }
-
-    // Wait for all dealer removals to conclude.
-    await Promise.all(removals);
   }
 
   private initializeDetectors() {
@@ -308,61 +273,59 @@ export class PerceptionToolkit extends HTMLElement {
       await Promise.all(this.startupDetections);
       hideOverlay(overlayInit);
 
-      // Image targets.
-      if (this.detectorsToUse.image || detectors === 'lazy' ||
-          detectors === 'all') {
-        await this.loadImageTargets();
-      }
+      // Sets up MM initial context.
+      const nextFrameContext = await this.meaningMaker.updatePerceptionState({});
+      await this.prepareForNextFrame(nextFrameContext);
+
       this.hideLoaderIfNeeded();
     } catch (e) {
       log(e.message, DEBUG_LEVEL.ERROR, 'Detection');
     }
   }
 
-  private async loadImageTargets() {
-    const detectableImages = await this.meaningMaker.getDetectableImages();
-    if (detectableImages.length === 0) {
-      return;
-    }
+  private async prepareForNextFrame(nextFrameContext: ProbableTargets) {
+    // Prep Image Targets
+    if ((this.detectorsToUse.image || detectors === 'lazy' || detectors === 'all')
+        && nextFrameContext.detectableImages.length > 0) {
+      const overlayInit = { id: 'pt.imagetargets', small: true };
+      showOverlay('Obtaining image targets...', overlayInit);
 
-    const overlayInit = { id: 'pt.imagetargets', small: true };
-    showOverlay('Obtaining image targets...', overlayInit);
+      // Enable detection for any targets.
+      let imageCount = 0;
+      for (const image of nextFrameContext.detectableImages) {
+        for (const media of image.media) {
+          // If the object does not match our requirements, bail.
+          if (!media['@type'] || media['@type'] !== 'MediaObject' ||
+              !media.contentUrl || !media.encodingFormat ||
+              media.encodingFormat !== 'application/octet+pd') {
+            continue;
+          }
 
-    // Enable detection for any targets.
-    let imageCount = 0;
-    for (const image of detectableImages) {
-      for (const media of image.media) {
-        // If the object does not match our requirements, bail.
-        if (!media['@type'] || media['@type'] !== 'MediaObject' ||
-            !media.contentUrl || !media.encodingFormat ||
-            media.encodingFormat !== 'application/octet+pd') {
-          continue;
-        }
+          const url = media.contentUrl.toString();
+          log(`Loading ${url}`, DEBUG_LEVEL.VERBOSE);
 
-        const url = media.contentUrl.toString();
-        log(`Loading ${url}`, DEBUG_LEVEL.VERBOSE);
+          // Obtain a Uint8Array for the file.
+          try {
+            const bytes = await fetch(url, { credentials: 'include' })
+                .then(r => r.arrayBuffer())
+                .then(b => new Uint8Array(b));
 
-        // Obtain a Uint8Array for the file.
-        try {
-          const bytes = await fetch(url, { credentials: 'include' })
-              .then(r => r.arrayBuffer())
-              .then(b => new Uint8Array(b));
-
-          // Switch on detection.
-          log(`Adding detection target: ${image.id}`);
-          addDetectionTarget(bytes, image);
-          imageCount++;
-        } catch (e) {
-          log(`Unable to load ${url}`, DEBUG_LEVEL.WARNING);
+            // Switch on detection.
+            log(`Adding detection target: ${image.id}`);
+            addDetectionTarget(bytes, image);
+            imageCount++;
+          } catch (e) {
+            log(`Unable to load ${url}`, DEBUG_LEVEL.WARNING);
+          }
         }
       }
+
+      hideOverlay(overlayInit);
+      log(`${imageCount} target(s) added`, DEBUG_LEVEL.INFO);
+
+      // Declare the detector ready to use.
+      this.detectorsToUse.image = true;
     }
-
-    hideOverlay(overlayInit);
-    log(`${imageCount} target(s) added`, DEBUG_LEVEL.INFO);
-
-    // Declare the detector ready to use.
-    this.detectorsToUse.image = true;
   }
 
   private hideLoaderIfNeeded() {
@@ -466,109 +429,97 @@ export class PerceptionToolkit extends HTMLElement {
 
     // Only use detectors that we explicitly ask to run.
     // This is set in the config, under `detectors`.
-    const detectionTasks = [];
-    if (this.detectorsToUse.barcode) {
-      detectionTasks.push(detectBarcodes(imgData, { root }));
-    }
+    const [ detectedMarkers, detectedImages ]  = await Promise.all([
+      this.detectorsToUse.barcode ? detectBarcodes(imgData, { root }) : [],
+      this.detectorsToUse.image ? detectPlanarImages(imgData, { root }) : [],
+    ]);
 
-    if (this.detectorsToUse.image) {
-      detectionTasks.push(detectPlanarImages(imgData, { root }));
-    }
+    const response = await this.meaningMaker.updatePerceptionState({
+      markers: detectedMarkers,
+      geo: {},
+      images: detectedImages,
+      shouldLoadArtifactsFrom: window.PerceptionToolkit.config.shouldLoadArtifactsFrom
+    });
 
-    const detectorOutcomes = await Promise.all(detectionTasks);
-    const targets = flat(detectorOutcomes, 1) as Marker[];
-    for (const target of targets) {
-      const targetAlreadyDetected = this.detectedTargets.has(target);
+    // Vibrate if we have at least 1 new target -- even if we don't have content for it.
+    if (response.newTargets.length > 0) {
+      vibrate(200);
 
-      // Update the last time this marker was seen.
-      this.detectedTargets.set(target, self.performance.now());
-      if (targetAlreadyDetected) {
-        continue;
+      for (const target of response.newTargets) {
+        log(target, DEBUG_LEVEL.INFO, 'Detect');
+        fire(markerDetect, this, target);
       }
+    }
 
-      log(target.value, DEBUG_LEVEL.INFO, 'Detect');
+    // Make changes if results changed
+    if (response.found.length > 0 || response.lost.length > 0) {
+      const markerChangeEvt = fire(perceivedResults, this, {
+          found: Array.from(response.found),
+          lost: Array.from(response.lost)
+        });
 
-      // Only fire the event if the marker is freshly detected.
-      fire(markerDetect, this, target);
+      // If the developer prevents default on the marker changes event then don't
+      // handle the UI updates; they're doing it themselves.
+      if (!markerChangeEvt.defaultPrevented) {
+        this.updateContentDisplay(response);
+      }
+    }
+
+    // See if we have any "unknown" markers
+    if (response.newTargets.length > response.found.length) {
+      if (response.found.length === 0) {
+        // TODO: We cannot have unknown DetectedImage, so can cast to Marker -- but handleUnknownItems
+        // should probably handle all target types.
+        this.handleUnknownItems(response.newTargets as Marker[]);
+      } else {
+        // TODO: We found at least one result, so how can we know which is unhandled?
+      }
     }
 
     // Unlock!
     this.isProcessingFrame = false;
-    this.purgeOldMarkers();
   }
 
   private async onMarkerFound(evt: Event) {
+    // TODO: may be able to move this code into onCaptureFrame and remove this event.
     clearTimeout(this.hintTimeoutId);
     hideOverlay();
-
-    const marker = (evt as CustomEvent<Marker>).detail;
-    const { value, type } = marker;
-    const { shouldLoadArtifactsFrom } = window.PerceptionToolkit.config;
-
-    const lost: NearbyResult[] = [];
-    const found: NearbyResult[] = [];
-    switch (type) {
-      case 'ARImageTarget':
-        const image = await getTarget(value);
-        if (!image) {
-          break;
-        }
-
-        const imageDiff = await this.meaningMaker.imageFound(image);
-        lost.push(...imageDiff.lost);
-        found.push(...imageDiff.found);
-        break;
-
-      default:
-        const markerDiff =
-            await this.meaningMaker.markerFound(marker, shouldLoadArtifactsFrom);
-        lost.push(...markerDiff.lost);
-        found.push(...markerDiff.found);
-        break;
-    }
-    const contentDiff = { lost, found };
-    const markerChangeEvt = fire(perceivedResults, this, contentDiff);
-
-    // If the developer prevents default on the marker changes event then don't
-    // handle the UI updates; they're doing it themselves.
-    if (markerChangeEvt.defaultPrevented) {
-      return;
-    }
-
-    vibrate(200);
-    this.updateContentDisplay(contentDiff, marker);
   }
 
-  private updateContentDisplay(contentDiff: NearbyResultDelta, marker: Marker) {
+  private updateContentDisplay(contentDiff: PerceptionStateChangeResponse) {
     if (!cardContainer) {
       log(`No card container provided, but event's default was not prevented`,
           DEBUG_LEVEL.ERROR);
       return;
     }
 
-    this.handleUnknownItems(contentDiff, marker);
     this.removeUnknownItemsIfFound(contentDiff);
     this.createCardsForFoundItems(contentDiff);
   }
 
-  private handleUnknownItems(contentDiff: NearbyResultDelta, marker: Marker) {
+  private handleUnknownItems(targets: Marker[]) {
     if (!cardContainer ||  // No card container.
-        !acknowledgeUnknownItems ||  // The config says to ignore unknowns.
-        contentDiff.found.length > 0 ||  // There are found items.
-        contentDiff.lost.length > 0 ||  // There are lost items.
-        cardContainer.childNodes.length >= maxCards) {
+        !acknowledgeUnknownItems) {// The config says to ignore unknowns.
       return;
     }
 
-    const card = new Card();
-    card.src = `Unknown value: ${marker.value}`;
-    card.classList.add('item-not-known');
-    cardContainer.appendChild(card);
+    for (const target of targets) {
+      // Prevent too many cards from showing.
+      if (cardContainer.childNodes.length >= maxCards) {
+        break;
+      }
+
+      const card = new Card();
+      card.src = `Unknown value: ${target.value}`;
+      card.classList.add('item-not-known');
+      cardContainer.appendChild(card);
+    }
+
     return;
   }
 
   // Remove 'unknown item' cards if there is now a found item.
-  private removeUnknownItemsIfFound(contentDiff: NearbyResultDelta) {
+  private removeUnknownItemsIfFound(contentDiff: PerceptionStateChangeResponse) {
     if (!cardContainer || contentDiff.found.length === 0) {
       return;
     }
@@ -579,16 +530,16 @@ export class PerceptionToolkit extends HTMLElement {
     }
   }
 
-  private createCardsForFoundItems(contentDiff: NearbyResultDelta) {
+  private createCardsForFoundItems(contentDiff: PerceptionStateChangeResponse) {
     if (!cardContainer) {
       return;
     }
 
     // Create a card for every found marker.
     for (const { artifact: { arContent } } of contentDiff.found) {
-      // Prevent multiple cards from showing.
+      // Prevent too many from showing.
       if (cardContainer.childNodes.length >= maxCards) {
-        continue;
+        break;
       }
 
       const cardContent = arContent as CardData;

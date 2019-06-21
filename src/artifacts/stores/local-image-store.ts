@@ -16,13 +16,12 @@
  */
 
 import { DetectableImage, DetectedImage } from '../../../defs/detected-image.js';
-import { NearbyResult } from '../artifact-dealer.js';
-import { ARArtifact, ARImageTarget } from '../schema/extension-ar-artifacts.js';
-import { typeIsJsonLd } from '../schema/json-ld.js';
 import { typeIsThing } from '../schema/core-schema-org.js';
+import { ARArtifact, ARImageTarget } from '../schema/extension-ar-artifacts.js';
+import { PerceptionResult } from './artifact-store.js';
 
 export class LocalImageStore {
-  private readonly images = new Map<string, NearbyResult>();
+  private readonly images = new Map<string, PerceptionResult>();
 
   addImage(artifact: ARArtifact, imageTarget: ARImageTarget): boolean {
     if (!imageTarget.name) {
@@ -72,7 +71,7 @@ export class LocalImageStore {
     return allDetectableImages;
   }
 
-  findRelevantArtifacts(detectedImages: DetectedImage[]): NearbyResult[] {
+  findRelevantArtifacts(detectedImages: DetectedImage[]): PerceptionResult[] {
     const ret = [];
     for (const detectedImage of detectedImages) {
       const nearbyResult = this.images.get(detectedImage.id);

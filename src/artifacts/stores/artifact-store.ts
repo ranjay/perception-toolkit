@@ -21,18 +21,23 @@ import { GeoCoordinates } from '../schema/core-schema-org.js';
 import { ARArtifact, ARTargetTypes } from '../schema/extension-ar-artifacts.js';
 
 /*
- * NearbyResult combines for an ARArtifact result, and the specific ARTargetType that was used to trigger it.
+ * PerceptionState is usually created per-captured video frame, and includes all the currently detected targets.
  */
-export interface NearbyResult {
+export interface PerceptionState {
+  markers?: Marker[];
+  geo?: GeoCoordinates;
+  images?: DetectedImage[];
+}
+
+/*
+ * PerceptionResult combines an ARArtifact result, with the specific ARTargetType that was used to trigger it.
+ */
+export interface PerceptionResult {
   target?: ARTargetTypes;
   artifact: ARArtifact;
 }
 
 export interface ArtifactStore {
-  getDetectableImages?(): Promise<DetectableImage[]>;
-  findRelevantArtifacts?(
-      nearbyMarkers: Marker[],
-      geo: GeoCoordinates,
-      detectedImages: DetectedImage[]
-    ): Promise<NearbyResult[]>;
+  getDetectableImages?(state: PerceptionState): Promise<DetectableImage[]>;
+  findRelevantArtifacts?(state: PerceptionState): Promise<PerceptionResult[]>;
 }

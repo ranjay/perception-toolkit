@@ -15,96 +15,45 @@
  * limitations under the License.
  */
 
-import { DetectableImage, DetectedImage } from '../../defs/detected-image.js';
-import { Marker } from '../../defs/marker.js';
+import { DetectableImage } from '../../defs/detected-image.js';
 import { flat } from '../utils/flat.js';
-import { generateMarkerId } from '../utils/generate-marker-id.js';
-import { GeoCoordinates } from './schema/core-schema-org.js';
-import { ArtifactStore, NearbyResult } from './stores/artifact-store.js';
+import { ArtifactStore, PerceptionResult, PerceptionState } from './stores/artifact-store.js';
 
-export { NearbyResult };
-export interface NearbyResultDelta {
-  found: NearbyResult[];
-  lost: NearbyResult[];
+export interface ProbableTargets {
+  detectableImages: DetectableImage[];
 }
 
 export class ArtifactDealer {
   private readonly artstores: ArtifactStore[] = [];
-  private readonly nearbyMarkers = new Map<string, Marker>();
-  private readonly nearbyImages = new Map<string, DetectedImage>();
-  private nearbyResults = new Set<NearbyResult>();
-  private currentGeolocation: GeoCoordinates = {};
 
-  async addArtifactStore(artstore: ArtifactStore): Promise<NearbyResultDelta> {
+  async addArtifactStore(artstore: ArtifactStore) {
     this.artstores.push(artstore);
-    return this.generateDiffs();
   }
 
-  async getDetectableImages(): Promise<DetectableImage[]> {
+  async predictPerceptionTargets(request: PerceptionState): Promise<ProbableTargets> {
     const allStoreResults = await Promise.all(this.artstores.map((artstore) => {
       if (!artstore.getDetectableImages) {
         return [];
       }
-      return artstore.getDetectableImages();
+      return artstore.getDetectableImages(request);
     }));
-    return flat(allStoreResults);
+    return { detectableImages: flat(allStoreResults) };
   }
 
-  async updateGeolocation(coords: GeoCoordinates): Promise<NearbyResultDelta> {
-    this.currentGeolocation = coords;
-    return this.generateDiffs();
-  }
+  async getPerceptionResults(context: PerceptionState): Promise<PerceptionResult[]> {
+    // Set default property values to empty lists, since they are optional.
+    // Do this because context may be passed to custom artstores (written in JS) which expect them defined.
+    context = { markers: [], geo: [], images: [], ...context };
 
-  async markerFound(marker: Marker): Promise<NearbyResultDelta> {
-    this.nearbyMarkers.set(generateMarkerId(marker.type, marker.value), marker);
-    return this.generateDiffs();
-  }
-
-  async markerLost(marker: Marker): Promise<NearbyResultDelta> {
-    this.nearbyMarkers.delete(generateMarkerId(marker.type, marker.value));
-    return this.generateDiffs();
-  }
-
-  async imageFound(detectedImage: DetectedImage): Promise<NearbyResultDelta> {
-    this.nearbyImages.set(detectedImage.id, detectedImage);
-    return this.generateDiffs();
-  }
-
-  async imageLost(detectedImage: DetectedImage): Promise<NearbyResultDelta> {
-    this.nearbyImages.delete(detectedImage.id);
-    return this.generateDiffs();
-  }
-
-  private async generateDiffs(): Promise<NearbyResultDelta> {
     // Using current context (geo, markers), ask artstores to compute relevant artifacts
     const allStoreResults = await Promise.all(this.artstores.map((artstore) => {
       if (!artstore.findRelevantArtifacts) {
         return [];
       }
-      return artstore.findRelevantArtifacts(
-        Array.from(this.nearbyMarkers.values()),
-        this.currentGeolocation,
-        Array.from(this.nearbyImages.values())
-      );
+      return artstore.findRelevantArtifacts(context);
     }));
-    const uniqueNearbyResults: Set<NearbyResult> = new Set(flat(allStoreResults));
 
-    // Diff with previous list to compute new/old artifacts.
-    //  - New ones are those which haven't appeared before.
-    //  - Old ones are those which are no longer nearby.
-    //  - The remainder (intersection) are not reported.
-    const newNearbyResults: NearbyResult[] = [...uniqueNearbyResults].filter(a => !this.nearbyResults.has(a));
-    const oldNearbyresults: NearbyResult[] = [...this.nearbyResults].filter(a => !uniqueNearbyResults.has(a));
-
-    const ret: NearbyResultDelta = {
-      found: [...newNearbyResults],
-      lost: [...oldNearbyresults]
-    };
-
-    // Update current set of nearbyResults.
-    this.nearbyResults = uniqueNearbyResults;
-
-    return ret;
+    return flat(allStoreResults);
   }
 
 }
